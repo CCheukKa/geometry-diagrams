@@ -1,0 +1,13 @@
+html {
+    background-color: #202020;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+svg {
+    display: block;
+    margin: 0 auto;
+    outline: 1px solid white;
+}
