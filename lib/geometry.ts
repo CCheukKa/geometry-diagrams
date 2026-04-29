@@ -1,24 +1,23 @@
-export const POINTS: Point[] = [];
-export const LINES: Line[] = [];
-
 export class Point {
     public x: number;
     public y: number;
-    public z: number;
+    public z?: number;
+    public colour?: string | undefined;
 
-    constructor(x: number, y: number, z: number = 0) {
+    constructor(x: number, y: number, z?: number, colour?: string) {
         this.x = x;
         this.y = y;
-        this.z = z;
-        POINTS.push(this);
+        this.z = z ?? 0;
+        this.colour = colour;
     }
 }
 
 export class Line {
     public points: [Point, Point];
+    public colour?: string | undefined;
 
-    constructor(point1: Point, point2: Point) {
+    constructor(point1: Point, point2: Point, colour?: string) {
         this.points = [point1, point2];
-        LINES.push(this);
+        this.colour = colour;
     }
 }

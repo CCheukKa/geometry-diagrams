@@ -29,7 +29,7 @@ export function draw2D(paper: HTMLElement & SVGElement, points: Point[], lines: 
         circle.setAttribute("cx", point.x.toString());
         circle.setAttribute("cy", point.y.toString());
         circle.setAttribute("r", "5");
-        circle.setAttribute("fill", PALETTE.point);
+        circle.setAttribute("fill", point.colour ?? PALETTE.point);
         paper.appendChild(circle);
     }
 
@@ -41,7 +41,7 @@ export function draw2D(paper: HTMLElement & SVGElement, points: Point[], lines: 
         lineElement.setAttribute("y1", point1.y.toString());
         lineElement.setAttribute("x2", point2.x.toString());
         lineElement.setAttribute("y2", point2.y.toString());
-        lineElement.setAttribute("stroke", PALETTE.line);
+        lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
         lineElement.setAttribute("stroke-width", "2");
         paper.appendChild(lineElement);
     }
@@ -141,8 +141,8 @@ export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: 
     paper.innerHTML = "";
 
     // Project points using camera matrix
-    const projectedPoints = points.map((point) => {
-        const pointVector = new Vector([point.x, point.y, point.z, 1]);
+    const project = (point: Point) => {
+        const pointVector = new Vector([point.x, point.y, point.z ?? 0, 1]);
         const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
 
         // Extract x, y, z from the 3D result
@@ -150,13 +150,20 @@ export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: 
         const y_proj = projectedVector.at(1);
         const z_proj = projectedVector.at(2);
 
+        if (camera.projectionType === ProjectionType.ORTHOGRAPHIC) {
+            return { x: x_proj, y: y_proj, colour: point.colour };
+        }
+
         // Perspective: divide by depth (z)
         const depth = z_proj !== 0 ? z_proj : 1;
         return {
             x: x_proj / depth,
             y: y_proj / depth,
+            colour: point.colour,
         };
-    });
+    };
+
+    const projectedPoints = points.map(project);
 
     // Draw points
     for (const projectedPoint of projectedPoints) {
@@ -164,21 +171,21 @@ export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: 
         circle.setAttribute("cx", projectedPoint.x.toString());
         circle.setAttribute("cy", projectedPoint.y.toString());
         circle.setAttribute("r", "5");
-        circle.setAttribute("fill", PALETTE.point);
+        circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
         paper.appendChild(circle);
     }
 
     // Draw lines
     for (const line of lines) {
         const [point1, point2] = line.points;
-        const projectedPoint1 = projectedPoints[points.indexOf(point1)];
-        const projectedPoint2 = projectedPoints[points.indexOf(point2)];
+        const projectedPoint1 = project(point1);
+        const projectedPoint2 = project(point2);
         const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
         lineElement.setAttribute("x1", projectedPoint1!.x.toString());
         lineElement.setAttribute("y1", projectedPoint1!.y.toString());
         lineElement.setAttribute("x2", projectedPoint2!.x.toString());
         lineElement.setAttribute("y2", projectedPoint2!.y.toString());
-        lineElement.setAttribute("stroke", PALETTE.line);
+        lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
         lineElement.setAttribute("stroke-width", "2");
         paper.appendChild(lineElement);
     }
