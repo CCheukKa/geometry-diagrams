@@ -24,14 +24,14 @@ const updateCameraPosition = () => {
     const yaw = parseFloat(cameraYawInput.value) * (Math.PI / 180);
     const pitch = parseFloat(cameraPitchInput.value) * (Math.PI / 180);
 
-    const yawQuat = axisAngleToQuaternion({ x: 0, y: 1, z: 0 }, yaw);
+    const yawQuat = axisAngleToQuaternion({ x: 0, y: 0, z: 1 }, yaw);
     const rightAfterYaw = rotateVector({ x: 1, y: 0, z: 0 }, yawQuat);
     const pitchQuat = axisAngleToQuaternion(rightAfterYaw, pitch);
     const orbitRotation = Quat.product(pitchQuat, yawQuat);
 
     // Base orbit vector at distance r, then rotate via quaternion.
-    const rotated = rotateVector({ x: 0, y: 0, z: r }, orbitRotation);
-    const upHint = rotateVector({ x: 0, y: 1, z: 0 }, orbitRotation);
+    const rotated = rotateVector({ x: 0, y: r, z: 0 }, orbitRotation);
+    const upHint = rotateVector({ x: 0, y: 0, z: 1 }, orbitRotation);
     const x = rotated.x;
     const y = rotated.y;
     const z = rotated.z;
@@ -50,27 +50,33 @@ const xAxisStub = new Line(origin, new Point(100, 0, 0), "red");
 const yAxisStub = new Line(origin, new Point(0, 100, 0), "green");
 const zAxisStub = new Line(origin, new Point(0, 0, 100), "blue");
 
-// triangular prism
-const p1 = new Point(0, 0, 0);
-const p2 = new Point(100, 0, 0);
-const p3 = new Point(50, 86.6, 0);
-const p4 = new Point(0, 0, 100);
-const p5 = new Point(100, 0, 100);
-const p6 = new Point(50, 86.6, 100);
-const points = [origin, p1, p2, p3, p4, p5, p6];
+// cube centered at (0, 0, 0)
+const p1 = new Point(-50, -50, -50);
+const p2 = new Point(50, -50, -50);
+const p3 = new Point(50, 50, -50);
+const p4 = new Point(-50, 50, -50);
+const p5 = new Point(-50, -50, 50);
+const p6 = new Point(50, -50, 50);
+const p7 = new Point(50, 50, 50);
+const p8 = new Point(-50, 50, 50);
+const points = [origin, p1, p2, p3, p4, p5, p6, p7, p8];
+// top edges in yellow, bottom edges in cyan, vertical edges in magenta
 const lines = [
     xAxisStub,
     yAxisStub,
     zAxisStub,
-    new Line(p1, p2),
-    new Line(p2, p3),
-    new Line(p3, p1),
-    new Line(p4, p5),
-    new Line(p5, p6),
-    new Line(p6, p4),
-    new Line(p1, p4),
-    new Line(p2, p5),
-    new Line(p3, p6),
+    new Line(p1, p2, "cyan"),
+    new Line(p2, p3, "cyan"),
+    new Line(p3, p4, "cyan"),
+    new Line(p4, p1, "cyan"),
+    new Line(p5, p6, "yellow"),
+    new Line(p6, p7, "yellow"),
+    new Line(p7, p8, "yellow"),
+    new Line(p8, p5, "yellow"),
+    new Line(p1, p5, "magenta"),
+    new Line(p2, p6, "magenta"),
+    new Line(p3, p7, "magenta"),
+    new Line(p4, p8, "magenta"),
 ];
 const annotations = [
     { text: "X", position: xAxisStub.points[1], colour: "red" },

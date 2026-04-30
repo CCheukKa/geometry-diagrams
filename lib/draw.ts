@@ -34,7 +34,7 @@ export class Camera {
     ) {
         this._position = position;
         this._lookAtTarget = lookAtTarget;
-        this._upHint = { x: 0, y: 1, z: 0 };
+        this._upHint = { x: 0, y: 0, z: 1 };
         this._focalLengths = focalLengths;
         this._principalPoint = principalPoint;
         this._projectionType = projectionType;
@@ -82,21 +82,21 @@ export class Camera {
         // Forward: direction from camera to target
         const forward = toVector3D(toVector(this._lookAtTarget).subtract(toVector(this._position)).normalize());
 
-        // Right: perpendicular to forward and up hint.
+        // Right: perpendicular to up hint and forward.
         let upReference = toVector3D(toVector(this._upHint).normalize());
-        let rightVector = toVector(forward).cross(toVector(upReference));
+        let rightVector = toVector(upReference).cross(toVector(forward));
 
         // Fallback when forward is parallel to the provided up reference.
         if (vectorLengthSquared(toVector3D(rightVector)) < 1e-12) {
             const fallbackUp: Vector3D = { x: 1, y: 0, z: 0 };
             upReference = fallbackUp;
-            rightVector = toVector(forward).cross(toVector(fallbackUp));
+            rightVector = toVector(fallbackUp).cross(toVector(forward));
         }
 
         const right = toVector3D(rightVector.normalize());
 
-        // Up: perpendicular to forward and right  
-        const up = toVector3D(toVector(right).cross(toVector(forward)).normalize());
+        // Up: perpendicular to forward and right.
+        const up = toVector3D(toVector(forward).cross(toVector(right)).normalize());
 
         // Extrinsic matrix: [R | -R*t] where R = [right; up; -forward]
         // In camera space, z points backward (away from scene), so we negate forward
