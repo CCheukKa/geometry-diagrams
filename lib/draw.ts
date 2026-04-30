@@ -62,6 +62,16 @@ export class Camera {
         this.updateCameraMatrices();
     }
 
+    public getForwardDepth(point: Vector3D): number {
+        const forward = toVector3D(toVector(this._lookAtTarget).subtract(toVector(this._position)).normalize());
+        const delta = {
+            x: point.x - this._position.x,
+            y: point.y - this._position.y,
+            z: point.z - this._position.z,
+        };
+        return forward.x * delta.x + forward.y * delta.y + forward.z * delta.z;
+    }
+
     private updateCameraMatrices(): void {
         this._intrinsicMatrix = this.computeCameraIntrinsicMatrix();
         this._extrinsicMatrix = this.computeCameraExtrinsicMatrix();
@@ -134,62 +144,122 @@ export function draw3D(
     lines: Line[],
     annotations: Annotation[],
 ): void {
+    type ProjectedPoint = {
+        x: number;
+        y: number;
+        depth: number;
+        visible: boolean;
+        colour: string | undefined;
+    };
+    type DrawCommand = {
+        depth: number;
+        draw: () => void;
+    };
+
     paper.innerHTML = "";
-    drawPoints();
-    drawLines();
+    drawDepthSortedGeometry();
     drawAnnotations();
-    // 
-    function project(point: Point): Point {
+
+    function project(point: Point): ProjectedPoint {
         const pointVector = new Vector([point.x, point.y, point.z ?? 0, 1]);
         const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
+        const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z ?? 0 });
 
         // Extract x, y, z from the 3D result
         const x_proj = projectedVector.at(0);
         const y_proj = projectedVector.at(1);
-        const z_proj = projectedVector.at(2);
 
         if (camera.projectionType === ProjectionType.ORTHOGRAPHIC) {
-            return { x: x_proj, y: y_proj, colour: point.colour };
+            return {
+                x: x_proj,
+                y: y_proj,
+                depth,
+                visible: true,
+                colour: point.colour,
+            };
         }
 
-        // Perspective: points in front of camera have negative z in this camera convention.
-        // Use forward depth (-z) so perspective orientation matches orthographic.
-        const depth = z_proj !== 0 ? -z_proj : 1;
+        if (depth <= 1e-6) {
+            return {
+                x: x_proj,
+                y: y_proj,
+                depth,
+                visible: false,
+                colour: point.colour,
+            };
+        }
+
+        // Perspective divide uses forward depth along the camera view direction.
         return {
             x: x_proj / depth,
             y: y_proj / depth,
+            depth,
+            visible: true,
             colour: point.colour,
         };
-    };
-    function drawLines() {
+    }
+
+    function drawDepthSortedGeometry() {
+        const commands: DrawCommand[] = [];
+
         for (const line of lines) {
             const [point1, point2] = line.points;
             const projectedPoint1 = project(point1);
             const projectedPoint2 = project(point2);
-            const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            lineElement.setAttribute("x1", projectedPoint1.x.toString());
-            lineElement.setAttribute("y1", projectedPoint1.y.toString());
-            lineElement.setAttribute("x2", projectedPoint2.x.toString());
-            lineElement.setAttribute("y2", projectedPoint2.y.toString());
-            lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
-            lineElement.setAttribute("stroke-width", "2");
-            paper.appendChild(lineElement);
+
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.visible || !projectedPoint2.visible)) {
+                continue;
+            }
+
+            commands.push({
+                depth: (projectedPoint1.depth + projectedPoint2.depth) / 2,
+                draw: () => {
+                    const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    lineElement.setAttribute("x1", projectedPoint1.x.toString());
+                    lineElement.setAttribute("y1", projectedPoint1.y.toString());
+                    lineElement.setAttribute("x2", projectedPoint2.x.toString());
+                    lineElement.setAttribute("y2", projectedPoint2.y.toString());
+                    lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
+                    lineElement.setAttribute("stroke-width", "2");
+                    paper.appendChild(lineElement);
+                },
+            });
         }
-    }
-    function drawPoints() {
+
         for (const point of points) {
             const projectedPoint = project(point);
-            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            circle.setAttribute("cx", projectedPoint.x.toString());
-            circle.setAttribute("cy", projectedPoint.y.toString());
-            circle.setAttribute("r", "5");
-            circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
-            paper.appendChild(circle);
+
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.visible) {
+                continue;
+            }
+
+            commands.push({
+                depth: projectedPoint.depth,
+                draw: () => {
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", projectedPoint.x.toString());
+                    circle.setAttribute("cy", projectedPoint.y.toString());
+                    circle.setAttribute("r", "5");
+                    circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
+                    paper.appendChild(circle);
+                },
+            });
+        }
+
+        commands.sort((a, b) => b.depth - a.depth);
+        for (const command of commands) {
+            command.draw();
         }
     }
+
     function drawAnnotations() {
         for (const annotation of annotations) {
             const projectedPosition = project(annotation.position);
+
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPosition.visible) {
+                continue;
+            }
+
             const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
             textElement.setAttribute("x", projectedPosition.x.toString());
             textElement.setAttribute("y", projectedPosition.y.toString());
