@@ -221,6 +221,9 @@ export function draw3D(
                     lineElement.setAttribute("y2", projectedPoint2.y.toString());
                     lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
                     lineElement.setAttribute("stroke-width", "2");
+                    lineElement.setAttribute("stroke-linecap", "round");
+                    lineElement.setAttribute("stroke-linejoin", "round");
+                    lineElement.setAttribute("shape-rendering", "geometricPrecision");
                     paper.appendChild(lineElement);
                 },
             });
