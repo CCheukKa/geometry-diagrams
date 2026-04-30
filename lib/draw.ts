@@ -154,12 +154,14 @@ export function draw3D(
     lines: Line[],
     tris: Tri[],
     annotations: Annotation[],
-    options: DrawOptions = {},
+    options: DrawOptions = {
+        renderPoints: true,
+        renderAnnotations: true,
+        triOpacity: 0.1,
+        annotationsAlwaysOnTop: true,
+        lineThickness: 2,
+    },
 ): void {
-    const renderPoints = options.renderPoints ?? true;
-    const renderAnnotations = options.renderAnnotations ?? true;
-    const annotationsAlwaysOnTop = options.annotationsAlwaysOnTop ?? true;
-
     type ProjectedPoint = {
         x: number;
         y: number;
@@ -185,46 +187,60 @@ export function draw3D(
             | { type: DrawableType.ANNOTATION; data: Annotation }
         );
 
+    /* -------------------------------------------------------------------------- */
+
     paper.innerHTML = "";
     drawGeometry();
 
+    /* -------------------------------------------------------------------------- */
+
+    const projectCache = new Map<Point, ProjectedPoint>();
     function project(point: Point): ProjectedPoint {
-        const pointVector = new Vector([point.x, point.y, point.z, 1]);
-        const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
-        const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z });
+        if (projectCache.has(point)) {
+            return projectCache.get(point)!;
+        }
+        const projected = _project(point);
+        projectCache.set(point, projected);
+        return projected;
+        /* -------------------------------------------------------------------------- */
+        function _project(point: Point): ProjectedPoint {
+            const pointVector = new Vector([point.x, point.y, point.z, 1]);
+            const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
+            const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z });
 
-        // Extract x, y, z from the 3D result
-        const x_proj = projectedVector.at(0);
-        const y_proj = projectedVector.at(1);
+            // Extract x, y, z from the 3D result
+            const x_proj = projectedVector.at(0);
+            const y_proj = projectedVector.at(1);
 
-        if (camera.projectionType === ProjectionType.ORTHOGRAPHIC) {
+            if (camera.projectionType === ProjectionType.ORTHOGRAPHIC) {
+                return {
+                    x: x_proj,
+                    y: y_proj,
+                    depth,
+                    withinRenderFrustrum: true,
+                    colour: point.colour,
+                };
+            }
+
+            if (depth <= 1e-6) {
+                return {
+                    x: x_proj,
+                    y: y_proj,
+                    depth,
+                    withinRenderFrustrum: false,
+                    colour: point.colour,
+                };
+            }
+
+            // Perspective divide uses forward depth along the camera view direction.
             return {
-                x: x_proj,
-                y: y_proj,
+                x: x_proj / depth,
+                y: y_proj / depth,
                 depth,
                 withinRenderFrustrum: true,
                 colour: point.colour,
             };
         }
-
-        if (depth <= 1e-6) {
-            return {
-                x: x_proj,
-                y: y_proj,
-                depth,
-                withinRenderFrustrum: false,
-                colour: point.colour,
-            };
-        }
-
-        // Perspective divide uses forward depth along the camera view direction.
-        return {
-            x: x_proj / depth,
-            y: y_proj / depth,
-            depth,
-            withinRenderFrustrum: true,
-            colour: point.colour,
-        };
     }
 
     function drawGeometry() {
@@ -258,7 +274,7 @@ export function draw3D(
             });
         }
 
-        if (renderPoints) {
+        if (options.renderPoints) {
             for (const point of points) {
                 const projectedPoint = project(point);
                 if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.withinRenderFrustrum) { continue; }
@@ -271,13 +287,13 @@ export function draw3D(
             }
         }
 
-        if (renderAnnotations) {
+        if (options.renderAnnotations) {
             for (const annotation of annotations) {
                 const projectedPosition = project(annotation.position);
                 if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPosition.withinRenderFrustrum) { continue; }
                 drawables.push({
                     type: DrawableType.ANNOTATION,
-                    depth: annotationsAlwaysOnTop ? -Infinity : projectedPosition.depth,
+                    depth: options.annotationsAlwaysOnTop ? -Infinity : projectedPosition.depth,
                     data: annotation,
                 });
             }
