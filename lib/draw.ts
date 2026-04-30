@@ -127,7 +127,13 @@ export type Annotation = {
     colour?: string;
 }
 
-export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: Point[], lines: Line[], annotations: Annotation[]): void {
+export function draw3D(
+    paper: HTMLElement & SVGElement,
+    camera: Camera,
+    points: Point[],
+    lines: Line[],
+    annotations: Annotation[],
+): void {
     paper.innerHTML = "";
     drawPoints();
     drawLines();
