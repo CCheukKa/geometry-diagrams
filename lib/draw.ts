@@ -5,6 +5,8 @@ import { toVector, toVector3D, vectorLengthSquared, type Matrix3x3, type Matrix3
 const PALETTE = {
     point: "#ff0000",
     line: "#0000ff",
+    tri: "#cccccc",
+    annotation: "#000000",
 };
 
 export enum ProjectionType {
@@ -145,13 +147,6 @@ export type DrawOptions = {
     lineThickness?: number;
 }
 
-enum DrawableType {
-    POINT = "point",
-    LINE = "line",
-    TRI = "tri",
-    ANNOTATION = "annotation",
-}
-
 export function draw3D(
     paper: HTMLElement & SVGElement,
     camera: Camera,
@@ -173,6 +168,13 @@ export function draw3D(
         colour: string | undefined;
     };
 
+    enum DrawableType {
+        POINT = "point",
+        LINE = "line",
+        TRI = "tri",
+        ANNOTATION = "annotation",
+    }
+
     type Drawable = {
         depth: number;
         colour?: string | undefined;
@@ -187,9 +189,9 @@ export function draw3D(
     drawGeometry();
 
     function project(point: Point): ProjectedPoint {
-        const pointVector = new Vector([point.x, point.y, point.z ?? 0, 1]);
+        const pointVector = new Vector([point.x, point.y, point.z, 1]);
         const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
-        const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z ?? 0 });
+        const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z });
 
         // Extract x, y, z from the 3D result
         const x_proj = projectedVector.at(0);
@@ -316,7 +318,7 @@ export function draw3D(
                     const [projectedPoint1, projectedPoint2, projectedPoint3] = drawable.data;
                     const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
                     polygon.setAttribute("points", `${projectedPoint1.x},${projectedPoint1.y} ${projectedPoint2.x},${projectedPoint2.y} ${projectedPoint3.x},${projectedPoint3.y}`);
-                    polygon.setAttribute("fill", drawable.colour ?? "#cccccc");
+                    polygon.setAttribute("fill", drawable.colour ?? PALETTE.tri);
                     polygon.setAttribute("fill-opacity", options.triOpacity?.toString() ?? "0.1");
                     polygon.setAttribute("stroke-linejoin", "round");
                     polygon.setAttribute("shape-rendering", "geometricPrecision");
@@ -329,7 +331,7 @@ export function draw3D(
                     const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
                     textElement.setAttribute("x", projectedPosition.x.toString());
                     textElement.setAttribute("y", projectedPosition.y.toString());
-                    textElement.setAttribute("fill", annotation.colour ?? "#000000");
+                    textElement.setAttribute("fill", annotation.colour ?? PALETTE.annotation);
                     textElement.setAttribute("dominant-baseline", "middle");
                     textElement.setAttribute("text-anchor", "middle");
                     textElement.textContent = annotation.text;

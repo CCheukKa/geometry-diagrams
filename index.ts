@@ -20,50 +20,6 @@ const showPointsCheckbox = document.getElementById("showPoints") as HTMLInputEle
 const triOpacityInput = document.getElementById("triOpacity") as HTMLInputElement;
 const lineThicknessInput = document.getElementById("lineThickness") as HTMLInputElement;
 
-const renderScene = () => {
-    draw3D(
-        paperElement,
-        camera,
-        points,
-        lines,
-        tris,
-        annotations,
-        {
-            renderAnnotations: showAnnotationsCheckbox.checked,
-            renderPoints: showPointsCheckbox.checked,
-            lineThickness: parseFloat(lineThicknessInput.value),
-            triOpacity: parseFloat(triOpacityInput.value),
-            annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
-        },
-    );
-};
-
-orthographicCheckbox.onchange = () => {
-    camera.projectionType = orthographicCheckbox.checked ? ProjectionType.ORTHOGRAPHIC : ProjectionType.PERSPECTIVE;
-    renderScene();
-}
-
-const updateCameraPosition = () => {
-    const r = parseFloat(cameraRadiusInput.value);
-    const yaw = parseFloat(cameraYawInput.value) * (Math.PI / 180);
-    const pitch = parseFloat(cameraPitchInput.value) * (Math.PI / 180);
-
-    const yawQuat = axisAngleToQuaternion({ x: 0, y: 0, z: 1 }, yaw);
-    const rightAfterYaw = rotateVector({ x: 1, y: 0, z: 0 }, yawQuat);
-    const pitchQuat = axisAngleToQuaternion(rightAfterYaw, pitch);
-    const orbitRotation = Quat.product(pitchQuat, yawQuat);
-
-    // Base orbit vector at distance r, then rotate via quaternion.
-    const rotated = rotateVector({ x: 0, y: r, z: 0 }, orbitRotation);
-    const upHint = rotateVector({ x: 0, y: 0, z: 1 }, orbitRotation);
-    const x = rotated.x;
-    const y = rotated.y;
-    const z = rotated.z;
-    camera.position = { x, y, z };
-    camera.upHint = upHint;
-    renderScene();
-}
-
 cameraRadiusInput.oninput = updateCameraPosition;
 cameraPitchInput.oninput = updateCameraPosition;
 cameraYawInput.oninput = updateCameraPosition;
@@ -72,6 +28,12 @@ showAnnotationsOnTopCheckbox.onchange = renderScene;
 showPointsCheckbox.onchange = renderScene;
 triOpacityInput.oninput = renderScene;
 lineThicknessInput.oninput = renderScene;
+orthographicCheckbox.onchange = () => {
+    camera.projectionType = orthographicCheckbox.checked ? ProjectionType.ORTHOGRAPHIC : ProjectionType.PERSPECTIVE;
+    renderScene();
+};
+
+/* -------------------------------------------------------------------------- */
 
 const origin = new Point(0, 0, 0, "white");
 const xAxisStub = new Line(origin, new Point(100, 0, 0), "red");
@@ -133,9 +95,49 @@ const camera = new Camera(
     {
         x: (Math.min(...points.map(p => p.x)) + Math.max(...points.map(p => p.x))) / 2,
         y: (Math.min(...points.map(p => p.y)) + Math.max(...points.map(p => p.y))) / 2,
-        z: (Math.min(...points.map(p => p.z ?? 0)) + Math.max(...points.map(p => p.z ?? 0))) / 2,
+        z: (Math.min(...points.map(p => p.z)) + Math.max(...points.map(p => p.z))) / 2,
     },
     { x: 1, y: 1 },
 );
 updateCameraPosition();
 renderScene();
+
+/* -------------------------------------------------------------------------- */
+
+function updateCameraPosition() {
+    const r = parseFloat(cameraRadiusInput.value);
+    const yaw = parseFloat(cameraYawInput.value) * (Math.PI / 180);
+    const pitch = parseFloat(cameraPitchInput.value) * (Math.PI / 180);
+
+    const yawQuat = axisAngleToQuaternion({ x: 0, y: 0, z: 1 }, yaw);
+    const rightAfterYaw = rotateVector({ x: 1, y: 0, z: 0 }, yawQuat);
+    const pitchQuat = axisAngleToQuaternion(rightAfterYaw, pitch);
+    const orbitRotation = Quat.product(pitchQuat, yawQuat);
+
+    // Base orbit vector at distance r, then rotate via quaternion.
+    const rotated = rotateVector({ x: 0, y: r, z: 0 }, orbitRotation);
+    const upHint = rotateVector({ x: 0, y: 0, z: 1 }, orbitRotation);
+    const x = rotated.x;
+    const y = rotated.y;
+    const z = rotated.z;
+    camera.position = { x, y, z };
+    camera.upHint = upHint;
+    renderScene();
+}
+function renderScene() {
+    draw3D(
+        paperElement,
+        camera,
+        points,
+        lines,
+        tris,
+        annotations,
+        {
+            renderAnnotations: showAnnotationsCheckbox.checked,
+            renderPoints: showPointsCheckbox.checked,
+            lineThickness: parseFloat(lineThicknessInput.value),
+            triOpacity: parseFloat(triOpacityInput.value),
+            annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
+        },
+    );
+};
