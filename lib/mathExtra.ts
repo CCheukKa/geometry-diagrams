@@ -1,16 +1,31 @@
+import { Quat, Vector } from "ts-matrix";
+
+export function normaliseVector(v: Vector3D): Vector3D {
+    const length = Math.hypot(v.x, v.y, v.z) || 1;
+    return { x: v.x / length, y: v.y / length, z: v.z / length };
+}
+
+export function axisAngleToQuaternion(axis: Vector3D, angleRadians: number): Quat {
+    const normalizedAxis = normaliseVector(axis);
+    return Quat.fromAxisAngle(new Vector([normalizedAxis.x, normalizedAxis.y, normalizedAxis.z]), angleRadians);
+}
+
+export function rotateVector(v: Vector3D, q: Quat): Vector3D {
+    const vectorQuat = new Quat([v.x, v.y, v.z, 0]);
+    const rotatedQuat = Quat.product(Quat.product(q, vectorQuat), q.copy().conjugate());
+    return {
+        x: rotatedQuat.x,
+        y: rotatedQuat.y,
+        z: rotatedQuat.z,
+    };
+}
+
 export type Vector2D = { x: number; y: number };
 export type Vector3D = { x: number; y: number; z: number };
-export type Vector4D = { x: number; y: number; z: number; w: number };
 export type Matrix3x3 = [
     [number, number, number],
     [number, number, number],
     [number, number, number],
-];
-export type Matrix4x4 = [
-    [number, number, number, number],
-    [number, number, number, number],
-    [number, number, number, number],
-    [number, number, number, number],
 ];
 export type Matrix3x4 = [
     [number, number, number, number],

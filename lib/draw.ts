@@ -19,6 +19,10 @@ function toVector3D(v: Vector): Vector3D {
     };
 }
 
+function vectorLengthSquared(v: Vector3D): number {
+    return v.x * v.x + v.y * v.y + v.z * v.z;
+}
+
 export function draw2D(paper: HTMLElement & SVGElement, points: Point[], lines: Line[]): void {
     // Clear previous drawings
     paper.innerHTML = "";
@@ -52,9 +56,10 @@ export enum ProjectionType {
     ORTHOGRAPHIC = "orthographic",
 }
 export class Camera {
-    public projectionType: ProjectionType;
+    private _projectionType: ProjectionType;
     private _position: Vector3D;
     private _lookAtTarget: Vector3D;
+    private _upHint: Vector3D;
     private _focalLengths: Vector2D;
     private _principalPoint: Vector2D
     private _skewCoefficient: number;
@@ -73,9 +78,10 @@ export class Camera {
     ) {
         this._position = position;
         this._lookAtTarget = lookAtTarget;
+        this._upHint = { x: 0, y: 1, z: 0 };
         this._focalLengths = focalLengths;
         this._principalPoint = principalPoint;
-        this.projectionType = projectionType;
+        this._projectionType = projectionType;
         this._skewCoefficient = skewCoefficient;
 
         this.updateCameraMatrices();
@@ -86,6 +92,20 @@ export class Camera {
         this.updateCameraMatrices();
     }
 
+    set upHint(upHint: Vector3D) {
+        this._upHint = upHint;
+        this.updateCameraMatrices();
+    }
+
+    get projectionType(): ProjectionType {
+        return this._projectionType;
+    }
+
+    set projectionType(projectionType: ProjectionType) {
+        this._projectionType = projectionType;
+        this.updateCameraMatrices();
+    }
+
     private updateCameraMatrices(): void {
         this._intrinsicMatrix = this.computeCameraIntrinsicMatrix();
         this._extrinsicMatrix = this.computeCameraExtrinsicMatrix();
@@ -93,7 +113,7 @@ export class Camera {
     }
 
     private computeCameraIntrinsicMatrix(): Matrix3x3 {
-        const focalLengthScalar = this.projectionType === ProjectionType.ORTHOGRAPHIC ? 1 : 800;
+        const focalLengthScalar = this._projectionType === ProjectionType.ORTHOGRAPHIC ? 1 : 800;
         return [
             [this._focalLengths.x * focalLengthScalar, this._skewCoefficient, this._principalPoint.x],
             [0, this._focalLengths.y * focalLengthScalar, this._principalPoint.y],
@@ -106,9 +126,18 @@ export class Camera {
         // Forward: direction from camera to target
         const forward = toVector3D(toVector(this._lookAtTarget).subtract(toVector(this._position)).normalize());
 
-        // Right: perpendicular to forward and up (world up is [0, 1, 0])
-        const worldUp: Vector3D = { x: 0, y: 1, z: 0 };
-        const right = toVector3D(toVector(forward).cross(toVector(worldUp)).normalize());
+        // Right: perpendicular to forward and up hint.
+        let upReference = toVector3D(toVector(this._upHint).normalize());
+        let rightVector = toVector(forward).cross(toVector(upReference));
+
+        // Fallback when forward is parallel to the provided up reference.
+        if (vectorLengthSquared(toVector3D(rightVector)) < 1e-12) {
+            const fallbackUp: Vector3D = { x: 1, y: 0, z: 0 };
+            upReference = fallbackUp;
+            rightVector = toVector(forward).cross(toVector(fallbackUp));
+        }
+
+        const right = toVector3D(rightVector.normalize());
 
         // Up: perpendicular to forward and right  
         const up = toVector3D(toVector(right).cross(toVector(forward)).normalize());
@@ -125,7 +154,7 @@ export class Camera {
         return [
             [right.x, right.y, right.z, t_cam_x],
             [up.x, up.y, up.z, t_cam_y],
-            this.projectionType === ProjectionType.ORTHOGRAPHIC
+            this._projectionType === ProjectionType.ORTHOGRAPHIC
                 ? [0, 0, 0, 1]
                 : [negForward.x, negForward.y, negForward.z, t_cam_z],
         ];
@@ -154,8 +183,9 @@ export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: 
             return { x: x_proj, y: y_proj, colour: point.colour };
         }
 
-        // Perspective: divide by depth (z)
-        const depth = z_proj !== 0 ? z_proj : 1;
+        // Perspective: points in front of camera have negative z in this camera convention.
+        // Use forward depth (-z) so perspective orientation matches orthographic.
+        const depth = z_proj !== 0 ? -z_proj : 1;
         return {
             x: x_proj / depth,
             y: y_proj / depth,
