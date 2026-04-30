@@ -17,11 +17,32 @@
     </head>
     <body>
         <svg id="paper" width="400" height="400"></svg>
-        <div>
-            <input type="checkbox" id="orthographic" />
-            <input type="range" id="cameraOrbitRadius" placeholder="Camera Radius" value="460" min="0" max="1000" />
-            <input type="range" id="cameraOrbitYaw" placeholder="Camera Yaw" value="340" min="0" max="360" />
-            <input type="range" id="cameraOrbitPitch" placeholder="Camera Pitch" value="150" min="0" max="360" />
+        <div class="control-menu">
+            <h2>Rendering Controls</h2>
+            <label class="control-row" for="orthographic">
+                <span>Orthographic Projection</span>
+                <input type="checkbox" id="orthographic" />
+            </label>
+            <label class="control-row" for="showAnnotations">
+                <span>Show Annotations</span>
+                <input type="checkbox" id="showAnnotations" checked />
+            </label>
+            <label class="control-row" for="showPoints">
+                <span>Show Points</span>
+                <input type="checkbox" id="showPoints" checked />
+            </label>
+            <label class="control-stack" for="cameraOrbitRadius">
+                <span>Camera Orbit Radius</span>
+                <input type="range" id="cameraOrbitRadius" value="460" min="0" max="1000" />
+            </label>
+            <label class="control-stack" for="cameraOrbitYaw">
+                <span>Camera Orbit Yaw</span>
+                <input type="range" id="cameraOrbitYaw" value="340" min="0" max="360" />
+            </label>
+            <label class="control-stack" for="cameraOrbitPitch">
+                <span>Camera Orbit Pitch</span>
+                <input type="range" id="cameraOrbitPitch" value="150" min="0" max="360" />
+            </label>
         </div>
     </body>
 </html>

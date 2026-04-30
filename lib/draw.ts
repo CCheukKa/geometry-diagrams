@@ -137,13 +137,22 @@ export type Annotation = {
     colour?: string;
 }
 
+export type DrawOptions = {
+    renderPoints?: boolean;
+    renderAnnotations?: boolean;
+}
+
 export function draw3D(
     paper: HTMLElement & SVGElement,
     camera: Camera,
     points: Point[],
     lines: Line[],
     annotations: Annotation[],
+    options: DrawOptions = {},
 ): void {
+    const renderPoints = options.renderPoints ?? true;
+    const renderAnnotations = options.renderAnnotations ?? true;
+
     type ProjectedPoint = {
         x: number;
         y: number;
@@ -158,7 +167,9 @@ export function draw3D(
 
     paper.innerHTML = "";
     drawDepthSortedGeometry();
-    drawAnnotations();
+    if (renderAnnotations) {
+        drawAnnotations();
+    }
 
     function project(point: Point): ProjectedPoint {
         const pointVector = new Vector([point.x, point.y, point.z ?? 0, 1]);
@@ -229,24 +240,26 @@ export function draw3D(
             });
         }
 
-        for (const point of points) {
-            const projectedPoint = project(point);
+        if (renderPoints) {
+            for (const point of points) {
+                const projectedPoint = project(point);
 
-            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.visible) {
-                continue;
+                if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.visible) {
+                    continue;
+                }
+
+                commands.push({
+                    depth: projectedPoint.depth,
+                    draw: () => {
+                        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        circle.setAttribute("cx", projectedPoint.x.toString());
+                        circle.setAttribute("cy", projectedPoint.y.toString());
+                        circle.setAttribute("r", "5");
+                        circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
+                        paper.appendChild(circle);
+                    },
+                });
             }
-
-            commands.push({
-                depth: projectedPoint.depth,
-                draw: () => {
-                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                    circle.setAttribute("cx", projectedPoint.x.toString());
-                    circle.setAttribute("cy", projectedPoint.y.toString());
-                    circle.setAttribute("r", "5");
-                    circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
-                    paper.appendChild(circle);
-                },
-            });
         }
 
         commands.sort((a, b) => b.depth - a.depth);

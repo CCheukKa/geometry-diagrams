@@ -14,9 +14,26 @@ const cameraRadiusInput = document.getElementById("cameraOrbitRadius") as HTMLIn
 const cameraPitchInput = document.getElementById("cameraOrbitPitch") as HTMLInputElement;
 const cameraYawInput = document.getElementById("cameraOrbitYaw") as HTMLInputElement;
 const orthographicCheckbox = document.getElementById("orthographic") as HTMLInputElement;
+const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HTMLInputElement;
+const showPointsCheckbox = document.getElementById("showPoints") as HTMLInputElement;
+
+const renderScene = () => {
+    draw3D(
+        paperElement,
+        camera,
+        points,
+        lines,
+        annotations,
+        {
+            renderAnnotations: showAnnotationsCheckbox.checked,
+            renderPoints: showPointsCheckbox.checked,
+        },
+    );
+};
+
 orthographicCheckbox.onchange = () => {
     camera.projectionType = orthographicCheckbox.checked ? ProjectionType.ORTHOGRAPHIC : ProjectionType.PERSPECTIVE;
-    draw3D(paperElement, camera, points, lines, annotations);
+    renderScene();
 }
 
 const updateCameraPosition = () => {
@@ -38,12 +55,14 @@ const updateCameraPosition = () => {
     console.log(`Camera position: (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`);
     camera.position = { x, y, z };
     camera.upHint = upHint;
-    draw3D(paperElement, camera, points, lines, annotations);
+    renderScene();
 }
 
 cameraRadiusInput.oninput = updateCameraPosition;
 cameraPitchInput.oninput = updateCameraPosition;
 cameraYawInput.oninput = updateCameraPosition;
+showAnnotationsCheckbox.onchange = renderScene;
+showPointsCheckbox.onchange = renderScene;
 
 const origin = new Point(0, 0, 0, "white");
 const xAxisStub = new Line(origin, new Point(100, 0, 0), "red");
@@ -95,4 +114,4 @@ const camera = new Camera(
     { x: 1, y: 1 },
 );
 updateCameraPosition();
-draw3D(paperElement, camera, points, lines, annotations);
+renderScene();
