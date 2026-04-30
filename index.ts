@@ -1,5 +1,5 @@
 import { Camera, draw3D, ProjectionType } from "@lib/draw";
-import { Line, Point } from "@lib/geometry";
+import { Face, Line, Point } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { Quat } from "ts-matrix";
 
@@ -16,6 +16,7 @@ const cameraYawInput = document.getElementById("cameraOrbitYaw") as HTMLInputEle
 const orthographicCheckbox = document.getElementById("orthographic") as HTMLInputElement;
 const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HTMLInputElement;
 const showPointsCheckbox = document.getElementById("showPoints") as HTMLInputElement;
+const faceOpacityInput = document.getElementById("faceOpacity") as HTMLInputElement;
 
 const renderScene = () => {
     draw3D(
@@ -23,10 +24,12 @@ const renderScene = () => {
         camera,
         points,
         lines,
+        faces,
         annotations,
         {
             renderAnnotations: showAnnotationsCheckbox.checked,
             renderPoints: showPointsCheckbox.checked,
+            faceOpacity: parseFloat(faceOpacityInput.value),
         },
     );
 };
@@ -63,6 +66,7 @@ cameraPitchInput.oninput = updateCameraPosition;
 cameraYawInput.oninput = updateCameraPosition;
 showAnnotationsCheckbox.onchange = renderScene;
 showPointsCheckbox.onchange = renderScene;
+faceOpacityInput.oninput = renderScene;
 
 const origin = new Point(0, 0, 0, "white");
 const xAxisStub = new Line(origin, new Point(100, 0, 0), "red");
@@ -97,6 +101,27 @@ const lines = [
     new Line(p3, p7, "magenta"),
     new Line(p4, p8, "magenta"),
 ];
+const faces: Face[] = [
+    // bottom face
+    { points: [p1, p2, p3], colour: "cyan" },
+    { points: [p1, p3, p4], colour: "cyan" },
+    // top face
+    { points: [p5, p6, p7], colour: "yellow" },
+    { points: [p5, p7, p8], colour: "yellow" },
+    // front face
+    { points: [p1, p2, p6], colour: "magenta" },
+    { points: [p1, p6, p5], colour: "magenta" },
+    // back face
+    { points: [p4, p3, p7], colour: "magenta" },
+    { points: [p4, p7, p8], colour: "magenta" },
+    // left face
+    { points: [p1, p4, p8], colour: "magenta" },
+    { points: [p1, p8, p5], colour: "magenta" },
+    // right face
+    { points: [p2, p3, p7], colour: "magenta" },
+    { points: [p2, p7, p6], colour: "magenta" },
+];
+
 const annotations = [
     { text: "X", position: xAxisStub.points[1], colour: "red" },
     { text: "Y", position: yAxisStub.points[1], colour: "green" },

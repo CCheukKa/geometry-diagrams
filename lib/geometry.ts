@@ -21,3 +21,13 @@ export class Line {
         this.colour = colour;
     }
 }
+
+export class Face {
+    public points: [Point, Point, Point];
+    public colour?: string | undefined;
+
+    constructor(point1: Point, point2: Point, point3: Point, colour?: string) {
+        this.points = [point1, point2, point3];
+        this.colour = colour;
+    }
+}

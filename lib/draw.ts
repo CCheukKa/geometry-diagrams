@@ -1,4 +1,4 @@
-import type { Line, Point } from "@lib/geometry";
+import type { Face, Line, Point } from "@lib/geometry";
 import { Matrix, Vector } from "ts-matrix";
 import { toVector, toVector3D, vectorLengthSquared, type Matrix3x3, type Matrix3x4, type Vector2D, type Vector3D } from "./mathExtra";
 
@@ -140,6 +140,7 @@ export type Annotation = {
 export type DrawOptions = {
     renderPoints?: boolean;
     renderAnnotations?: boolean;
+    faceOpacity?: number;
 }
 
 export function draw3D(
@@ -147,6 +148,7 @@ export function draw3D(
     camera: Camera,
     points: Point[],
     lines: Line[],
+    faces: Face[],
     annotations: Annotation[],
     options: DrawOptions = {},
 ): void {
@@ -212,6 +214,31 @@ export function draw3D(
 
     function drawDepthSortedGeometry() {
         const commands: DrawCommand[] = [];
+
+        for (const face of faces) {
+            const [point1, point2, point3] = face.points;
+            const projectedPoint1 = project(point1);
+            const projectedPoint2 = project(point2);
+            const projectedPoint3 = project(point3);
+            const averageDepth = (projectedPoint1.depth + projectedPoint2.depth + projectedPoint3.depth) / 3;
+
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.visible || !projectedPoint2.visible || !projectedPoint3.visible)) {
+                continue;
+            }
+
+            commands.push({
+                depth: averageDepth,
+                draw: () => {
+                    const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    polygon.setAttribute("points", `${projectedPoint1.x},${projectedPoint1.y} ${projectedPoint2.x},${projectedPoint2.y} ${projectedPoint3.x},${projectedPoint3.y}`);
+                    polygon.setAttribute("fill", face.colour ?? "#cccccc");
+                    polygon.setAttribute("fill-opacity", options.faceOpacity?.toString() ?? "0.1");
+                    polygon.setAttribute("stroke-linejoin", "round");
+                    polygon.setAttribute("shape-rendering", "geometricPrecision");
+                    paper.appendChild(polygon);
+                },
+            });
+        }
 
         for (const line of lines) {
             const [point1, point2] = line.points;
