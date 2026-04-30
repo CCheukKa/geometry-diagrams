@@ -1,55 +1,11 @@
 import type { Line, Point } from "@lib/geometry";
 import { Matrix, Vector } from "ts-matrix";
-import type { Matrix3x3, Matrix3x4, Vector2D, Vector3D } from "./mathExtra";
+import { toVector, toVector3D, vectorLengthSquared, type Matrix3x3, type Matrix3x4, type Vector2D, type Vector3D } from "./mathExtra";
 
 const PALETTE = {
     point: "#ff0000",
     line: "#0000ff",
 };
-
-function toVector(v: Vector3D): Vector {
-    return new Vector([v.x, v.y, v.z]);
-}
-
-function toVector3D(v: Vector): Vector3D {
-    return {
-        x: v.at(0),
-        y: v.at(1),
-        z: v.at(2),
-    };
-}
-
-function vectorLengthSquared(v: Vector3D): number {
-    return v.x * v.x + v.y * v.y + v.z * v.z;
-}
-
-export function draw2D(paper: HTMLElement & SVGElement, points: Point[], lines: Line[]): void {
-    // Clear previous drawings
-    paper.innerHTML = "";
-
-    // Draw points
-    for (const point of points) {
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", point.x.toString());
-        circle.setAttribute("cy", point.y.toString());
-        circle.setAttribute("r", "5");
-        circle.setAttribute("fill", point.colour ?? PALETTE.point);
-        paper.appendChild(circle);
-    }
-
-    // Draw lines
-    for (const line of lines) {
-        const [point1, point2] = line.points;
-        const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        lineElement.setAttribute("x1", point1.x.toString());
-        lineElement.setAttribute("y1", point1.y.toString());
-        lineElement.setAttribute("x2", point2.x.toString());
-        lineElement.setAttribute("y2", point2.y.toString());
-        lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
-        lineElement.setAttribute("stroke-width", "2");
-        paper.appendChild(lineElement);
-    }
-}
 
 export enum ProjectionType {
     PERSPECTIVE = "perspective",
@@ -165,12 +121,19 @@ export class Camera {
     }
 };
 
-export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: Point[], lines: Line[]): void {
-    // Clear previous drawings
-    paper.innerHTML = "";
+export type Annotation = {
+    text: string;
+    position: Point;
+    colour?: string;
+}
 
-    // Project points using camera matrix
-    const project = (point: Point) => {
+export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: Point[], lines: Line[], annotations: Annotation[]): void {
+    paper.innerHTML = "";
+    drawPoints();
+    drawLines();
+    drawAnnotations();
+    // 
+    function project(point: Point): Point {
         const pointVector = new Vector([point.x, point.y, point.z ?? 0, 1]);
         const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
 
@@ -192,31 +155,41 @@ export function draw3D(paper: HTMLElement & SVGElement, camera: Camera, points: 
             colour: point.colour,
         };
     };
-
-    const projectedPoints = points.map(project);
-
-    // Draw points
-    for (const projectedPoint of projectedPoints) {
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", projectedPoint.x.toString());
-        circle.setAttribute("cy", projectedPoint.y.toString());
-        circle.setAttribute("r", "5");
-        circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
-        paper.appendChild(circle);
+    function drawLines() {
+        for (const line of lines) {
+            const [point1, point2] = line.points;
+            const projectedPoint1 = project(point1);
+            const projectedPoint2 = project(point2);
+            const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            lineElement.setAttribute("x1", projectedPoint1.x.toString());
+            lineElement.setAttribute("y1", projectedPoint1.y.toString());
+            lineElement.setAttribute("x2", projectedPoint2.x.toString());
+            lineElement.setAttribute("y2", projectedPoint2.y.toString());
+            lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
+            lineElement.setAttribute("stroke-width", "2");
+            paper.appendChild(lineElement);
+        }
     }
-
-    // Draw lines
-    for (const line of lines) {
-        const [point1, point2] = line.points;
-        const projectedPoint1 = project(point1);
-        const projectedPoint2 = project(point2);
-        const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        lineElement.setAttribute("x1", projectedPoint1!.x.toString());
-        lineElement.setAttribute("y1", projectedPoint1!.y.toString());
-        lineElement.setAttribute("x2", projectedPoint2!.x.toString());
-        lineElement.setAttribute("y2", projectedPoint2!.y.toString());
-        lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
-        lineElement.setAttribute("stroke-width", "2");
-        paper.appendChild(lineElement);
+    function drawPoints() {
+        for (const point of points) {
+            const projectedPoint = project(point);
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", projectedPoint.x.toString());
+            circle.setAttribute("cy", projectedPoint.y.toString());
+            circle.setAttribute("r", "5");
+            circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
+            paper.appendChild(circle);
+        }
+    }
+    function drawAnnotations() {
+        for (const annotation of annotations) {
+            const projectedPosition = project(annotation.position);
+            const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            textElement.setAttribute("x", projectedPosition.x.toString());
+            textElement.setAttribute("y", projectedPosition.y.toString());
+            textElement.setAttribute("fill", annotation.colour ?? "#000000");
+            textElement.textContent = annotation.text;
+            paper.appendChild(textElement);
+        }
     }
 }

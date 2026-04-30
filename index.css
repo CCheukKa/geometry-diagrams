@@ -18,4 +18,5 @@ svg {
     display: block;
     margin: 0 auto;
     outline: 1px solid white;
+    font-family: "Noto Sans HK", sans-serif;
 }
