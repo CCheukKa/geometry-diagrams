@@ -87,7 +87,11 @@ const annotations = [
 const camera = new Camera(
     ProjectionType.PERSPECTIVE,
     { x: 500, y: 500, z: 500 },
-    { x: 0, y: 0, z: 0 },
+    {
+        x: (Math.min(...points.map(p => p.x)) + Math.max(...points.map(p => p.x))) / 2,
+        y: (Math.min(...points.map(p => p.y)) + Math.max(...points.map(p => p.y))) / 2,
+        z: (Math.min(...points.map(p => p.z ?? 0)) + Math.max(...points.map(p => p.z ?? 0))) / 2,
+    },
     { x: 1, y: 1 },
 );
 updateCameraPosition();
