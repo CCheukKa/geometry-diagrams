@@ -1,4 +1,4 @@
-import type { Face, Line, Point } from "@lib/geometry";
+import type { Tri, Line, Point } from "@lib/geometry";
 import { Matrix, Vector } from "ts-matrix";
 import { toVector, toVector3D, vectorLengthSquared, type Matrix3x3, type Matrix3x4, type Vector2D, type Vector3D } from "./mathExtra";
 
@@ -140,7 +140,15 @@ export type Annotation = {
 export type DrawOptions = {
     renderPoints?: boolean;
     renderAnnotations?: boolean;
-    faceOpacity?: number;
+    triOpacity?: number;
+    annotationsAlwaysOnTop?: boolean;
+}
+
+enum DrawableType {
+    POINT = "point",
+    LINE = "line",
+    TRI = "tri",
+    ANNOTATION = "annotation",
 }
 
 export function draw3D(
@@ -148,30 +156,34 @@ export function draw3D(
     camera: Camera,
     points: Point[],
     lines: Line[],
-    faces: Face[],
+    tris: Tri[],
     annotations: Annotation[],
     options: DrawOptions = {},
 ): void {
     const renderPoints = options.renderPoints ?? true;
     const renderAnnotations = options.renderAnnotations ?? true;
+    const annotationsAlwaysOnTop = options.annotationsAlwaysOnTop ?? true;
 
     type ProjectedPoint = {
         x: number;
         y: number;
         depth: number;
-        visible: boolean;
+        withinRenderFrustrum: boolean;
         colour: string | undefined;
     };
-    type DrawCommand = {
+
+    type Drawable = {
         depth: number;
-        draw: () => void;
-    };
+        colour?: string | undefined;
+    } & (
+            | { type: DrawableType.POINT; data: Point }
+            | { type: DrawableType.LINE; data: Line }
+            | { type: DrawableType.TRI; data: [ProjectedPoint, ProjectedPoint, ProjectedPoint] }
+            | { type: DrawableType.ANNOTATION; data: Annotation }
+        );
 
     paper.innerHTML = "";
-    drawDepthSortedGeometry();
-    if (renderAnnotations) {
-        drawAnnotations();
-    }
+    drawGeometry();
 
     function project(point: Point): ProjectedPoint {
         const pointVector = new Vector([point.x, point.y, point.z ?? 0, 1]);
@@ -187,7 +199,7 @@ export function draw3D(
                 x: x_proj,
                 y: y_proj,
                 depth,
-                visible: true,
+                withinRenderFrustrum: true,
                 colour: point.colour,
             };
         }
@@ -197,7 +209,7 @@ export function draw3D(
                 x: x_proj,
                 y: y_proj,
                 depth,
-                visible: false,
+                withinRenderFrustrum: false,
                 colour: point.colour,
             };
         }
@@ -207,36 +219,26 @@ export function draw3D(
             x: x_proj / depth,
             y: y_proj / depth,
             depth,
-            visible: true,
+            withinRenderFrustrum: true,
             colour: point.colour,
         };
     }
 
-    function drawDepthSortedGeometry() {
-        const commands: DrawCommand[] = [];
+    function drawGeometry() {
+        const drawables: Drawable[] = [];
 
-        for (const face of faces) {
-            const [point1, point2, point3] = face.points;
+        for (const tri of tris) {
+            const [point1, point2, point3] = tri.points;
             const projectedPoint1 = project(point1);
             const projectedPoint2 = project(point2);
             const projectedPoint3 = project(point3);
             const averageDepth = (projectedPoint1.depth + projectedPoint2.depth + projectedPoint3.depth) / 3;
-
-            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.visible || !projectedPoint2.visible || !projectedPoint3.visible)) {
-                continue;
-            }
-
-            commands.push({
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.withinRenderFrustrum || !projectedPoint2.withinRenderFrustrum || !projectedPoint3.withinRenderFrustrum)) { continue; }
+            drawables.push({
+                type: DrawableType.TRI,
+                colour: tri.colour,
+                data: [projectedPoint1, projectedPoint2, projectedPoint3],
                 depth: averageDepth,
-                draw: () => {
-                    const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-                    polygon.setAttribute("points", `${projectedPoint1.x},${projectedPoint1.y} ${projectedPoint2.x},${projectedPoint2.y} ${projectedPoint3.x},${projectedPoint3.y}`);
-                    polygon.setAttribute("fill", face.colour ?? "#cccccc");
-                    polygon.setAttribute("fill-opacity", options.faceOpacity?.toString() ?? "0.1");
-                    polygon.setAttribute("stroke-linejoin", "round");
-                    polygon.setAttribute("shape-rendering", "geometricPrecision");
-                    paper.appendChild(polygon);
-                },
             });
         }
 
@@ -244,14 +246,58 @@ export function draw3D(
             const [point1, point2] = line.points;
             const projectedPoint1 = project(point1);
             const projectedPoint2 = project(point2);
-
-            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.visible || !projectedPoint2.visible)) {
-                continue;
-            }
-
-            commands.push({
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.withinRenderFrustrum || !projectedPoint2.withinRenderFrustrum)) { continue; }
+            drawables.push({
+                type: DrawableType.LINE,
+                colour: line.colour,
+                data: line,
                 depth: (projectedPoint1.depth + projectedPoint2.depth) / 2,
-                draw: () => {
+            });
+        }
+
+        if (renderPoints) {
+            for (const point of points) {
+                const projectedPoint = project(point);
+                if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.withinRenderFrustrum) { continue; }
+                drawables.push({
+                    type: DrawableType.POINT,
+                    depth: projectedPoint.depth,
+                    colour: projectedPoint.colour,
+                    data: point,
+                });
+            }
+        }
+
+        if (renderAnnotations) {
+            for (const annotation of annotations) {
+                const projectedPosition = project(annotation.position);
+                if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPosition.withinRenderFrustrum) { continue; }
+                drawables.push({
+                    type: DrawableType.ANNOTATION,
+                    depth: annotationsAlwaysOnTop ? -Infinity : projectedPosition.depth,
+                    data: annotation,
+                });
+            }
+        }
+
+        drawables.sort((a, b) => b.depth - a.depth);
+        for (const drawable of drawables) {
+            switch (drawable.type) {
+                case DrawableType.POINT: {
+                    const projectedPoint = project(drawable.data);
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", projectedPoint.x.toString());
+                    circle.setAttribute("cy", projectedPoint.y.toString());
+                    circle.setAttribute("r", "5");
+                    circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
+                    paper.appendChild(circle);
+                    break;
+                }
+                case DrawableType.LINE: {
+                    const line = drawable.data;
+                    const [point1, point2] = line.points;
+                    const projectedPoint1 = project(point1);
+                    const projectedPoint2 = project(point2);
                     const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
                     lineElement.setAttribute("x1", projectedPoint1.x.toString());
                     lineElement.setAttribute("y1", projectedPoint1.y.toString());
@@ -263,52 +309,33 @@ export function draw3D(
                     lineElement.setAttribute("stroke-linejoin", "round");
                     lineElement.setAttribute("shape-rendering", "geometricPrecision");
                     paper.appendChild(lineElement);
-                },
-            });
-        }
-
-        if (renderPoints) {
-            for (const point of points) {
-                const projectedPoint = project(point);
-
-                if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.visible) {
-                    continue;
+                    break;
                 }
-
-                commands.push({
-                    depth: projectedPoint.depth,
-                    draw: () => {
-                        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                        circle.setAttribute("cx", projectedPoint.x.toString());
-                        circle.setAttribute("cy", projectedPoint.y.toString());
-                        circle.setAttribute("r", "5");
-                        circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
-                        paper.appendChild(circle);
-                    },
-                });
+                case DrawableType.TRI: {
+                    const [projectedPoint1, projectedPoint2, projectedPoint3] = drawable.data;
+                    const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    polygon.setAttribute("points", `${projectedPoint1.x},${projectedPoint1.y} ${projectedPoint2.x},${projectedPoint2.y} ${projectedPoint3.x},${projectedPoint3.y}`);
+                    polygon.setAttribute("fill", drawable.colour ?? "#cccccc");
+                    polygon.setAttribute("fill-opacity", options.triOpacity?.toString() ?? "0.1");
+                    polygon.setAttribute("stroke-linejoin", "round");
+                    polygon.setAttribute("shape-rendering", "geometricPrecision");
+                    paper.appendChild(polygon);
+                    break;
+                }
+                case DrawableType.ANNOTATION: {
+                    const annotation = drawable.data;
+                    const projectedPosition = project(annotation.position);
+                    const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    textElement.setAttribute("x", projectedPosition.x.toString());
+                    textElement.setAttribute("y", projectedPosition.y.toString());
+                    textElement.setAttribute("fill", annotation.colour ?? "#000000");
+                    textElement.setAttribute("dominant-baseline", "middle");
+                    textElement.setAttribute("text-anchor", "middle");
+                    textElement.textContent = annotation.text;
+                    paper.appendChild(textElement);
+                    break;
+                }
             }
-        }
-
-        commands.sort((a, b) => b.depth - a.depth);
-        for (const command of commands) {
-            command.draw();
-        }
-    }
-
-    function drawAnnotations() {
-        for (const annotation of annotations) {
-            const projectedPosition = project(annotation.position);
-
-            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPosition.visible) {
-                continue;
-            }
-
-            const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            textElement.setAttribute("x", projectedPosition.x.toString());
-            textElement.setAttribute("y", projectedPosition.y.toString());
-            textElement.setAttribute("fill", annotation.colour ?? "#000000");
-            textElement.textContent = annotation.text;
-            paper.appendChild(textElement);
         }
     }
 }

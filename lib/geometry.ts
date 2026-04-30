@@ -22,7 +22,7 @@ export class Line {
     }
 }
 
-export class Face {
+export class Tri {
     public points: [Point, Point, Point];
     public colour?: string | undefined;
 

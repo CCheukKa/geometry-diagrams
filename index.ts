@@ -1,5 +1,5 @@
 import { Camera, draw3D, ProjectionType } from "@lib/draw";
-import { Face, Line, Point } from "@lib/geometry";
+import { Tri, Line, Point } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { Quat } from "ts-matrix";
 
@@ -15,8 +15,9 @@ const cameraPitchInput = document.getElementById("cameraOrbitPitch") as HTMLInpu
 const cameraYawInput = document.getElementById("cameraOrbitYaw") as HTMLInputElement;
 const orthographicCheckbox = document.getElementById("orthographic") as HTMLInputElement;
 const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HTMLInputElement;
+const showAnnotationsOnTopCheckbox = document.getElementById("showAnnotationsOnTop") as HTMLInputElement;
 const showPointsCheckbox = document.getElementById("showPoints") as HTMLInputElement;
-const faceOpacityInput = document.getElementById("faceOpacity") as HTMLInputElement;
+const triOpacityInput = document.getElementById("triOpacity") as HTMLInputElement;
 
 const renderScene = () => {
     draw3D(
@@ -24,12 +25,13 @@ const renderScene = () => {
         camera,
         points,
         lines,
-        faces,
+        tris,
         annotations,
         {
             renderAnnotations: showAnnotationsCheckbox.checked,
             renderPoints: showPointsCheckbox.checked,
-            faceOpacity: parseFloat(faceOpacityInput.value),
+            triOpacity: parseFloat(triOpacityInput.value),
+            annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
         },
     );
 };
@@ -55,7 +57,6 @@ const updateCameraPosition = () => {
     const x = rotated.x;
     const y = rotated.y;
     const z = rotated.z;
-    console.log(`Camera position: (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`);
     camera.position = { x, y, z };
     camera.upHint = upHint;
     renderScene();
@@ -65,8 +66,9 @@ cameraRadiusInput.oninput = updateCameraPosition;
 cameraPitchInput.oninput = updateCameraPosition;
 cameraYawInput.oninput = updateCameraPosition;
 showAnnotationsCheckbox.onchange = renderScene;
+showAnnotationsOnTopCheckbox.onchange = renderScene;
 showPointsCheckbox.onchange = renderScene;
-faceOpacityInput.oninput = renderScene;
+triOpacityInput.oninput = renderScene;
 
 const origin = new Point(0, 0, 0, "white");
 const xAxisStub = new Line(origin, new Point(100, 0, 0), "red");
@@ -101,25 +103,19 @@ const lines = [
     new Line(p3, p7, "magenta"),
     new Line(p4, p8, "magenta"),
 ];
-const faces: Face[] = [
-    // bottom face
-    { points: [p1, p2, p3], colour: "cyan" },
-    { points: [p1, p3, p4], colour: "cyan" },
-    // top face
-    { points: [p5, p6, p7], colour: "yellow" },
-    { points: [p5, p7, p8], colour: "yellow" },
-    // front face
-    { points: [p1, p2, p6], colour: "magenta" },
-    { points: [p1, p6, p5], colour: "magenta" },
-    // back face
-    { points: [p4, p3, p7], colour: "magenta" },
-    { points: [p4, p7, p8], colour: "magenta" },
-    // left face
-    { points: [p1, p4, p8], colour: "magenta" },
-    { points: [p1, p8, p5], colour: "magenta" },
-    // right face
-    { points: [p2, p3, p7], colour: "magenta" },
-    { points: [p2, p7, p6], colour: "magenta" },
+const tris = [
+    new Tri(p1, p2, p3, "cyan"),
+    new Tri(p1, p3, p4, "cyan"),
+    new Tri(p5, p6, p7, "yellow"),
+    new Tri(p5, p7, p8, "yellow"),
+    new Tri(p1, p2, p6, "magenta"),
+    new Tri(p1, p6, p5, "magenta"),
+    new Tri(p4, p3, p7, "magenta"),
+    new Tri(p4, p7, p8, "magenta"),
+    new Tri(p1, p4, p8, "magenta"),
+    new Tri(p1, p8, p5, "magenta"),
+    new Tri(p2, p3, p7, "magenta"),
+    new Tri(p2, p7, p6, "magenta"),
 ];
 
 const annotations = [
