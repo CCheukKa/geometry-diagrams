@@ -18,6 +18,7 @@ const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HT
 const showAnnotationsOnTopCheckbox = document.getElementById("showAnnotationsOnTop") as HTMLInputElement;
 const showPointsCheckbox = document.getElementById("showPoints") as HTMLInputElement;
 const triOpacityInput = document.getElementById("triOpacity") as HTMLInputElement;
+const lineThicknessInput = document.getElementById("lineThickness") as HTMLInputElement;
 
 const renderScene = () => {
     draw3D(
@@ -30,6 +31,7 @@ const renderScene = () => {
         {
             renderAnnotations: showAnnotationsCheckbox.checked,
             renderPoints: showPointsCheckbox.checked,
+            lineThickness: parseFloat(lineThicknessInput.value),
             triOpacity: parseFloat(triOpacityInput.value),
             annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
         },
@@ -69,6 +71,7 @@ showAnnotationsCheckbox.onchange = renderScene;
 showAnnotationsOnTopCheckbox.onchange = renderScene;
 showPointsCheckbox.onchange = renderScene;
 triOpacityInput.oninput = renderScene;
+lineThicknessInput.oninput = renderScene;
 
 const origin = new Point(0, 0, 0, "white");
 const xAxisStub = new Line(origin, new Point(100, 0, 0), "red");

@@ -142,6 +142,7 @@ export type DrawOptions = {
     renderAnnotations?: boolean;
     triOpacity?: number;
     annotationsAlwaysOnTop?: boolean;
+    lineThickness?: number;
 }
 
 enum DrawableType {
@@ -304,7 +305,7 @@ export function draw3D(
                     lineElement.setAttribute("x2", projectedPoint2.x.toString());
                     lineElement.setAttribute("y2", projectedPoint2.y.toString());
                     lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
-                    lineElement.setAttribute("stroke-width", "2");
+                    lineElement.setAttribute("stroke-width", (options.lineThickness ?? 2).toString());
                     lineElement.setAttribute("stroke-linecap", "round");
                     lineElement.setAttribute("stroke-linejoin", "round");
                     lineElement.setAttribute("shape-rendering", "geometricPrecision");
