@@ -34,9 +34,17 @@ export type DrawOptions = {
 
 type Drawable =
     | { type: "point"; depth: number; colour: string | undefined; data: ProjectedPoint }
-    | { type: "line"; depth: number; colour: string | undefined; data: ProjectedLine; dashed?: boolean }
+    | { type: "line"; depth: number; colour: string | undefined; data: ProjectedLine; dashPattern?: DashPattern }
     | { type: "tri"; depth: number; colour: string | undefined; data: ProjectedTri }
     | { type: "annotation"; depth: number; data: { annotation: Annotation; projectedPosition: ProjectedPoint } };
+
+type DashPattern = {
+    dashLength: number;
+    gapLength: number;
+    dashOffset: number;
+};
+
+type Interval1D = [number, number];
 
 function createSvgElement(tagName: string): SVGElement {
     return document.createElementNS(SVG_NS, tagName) as SVGElement;
@@ -63,9 +71,9 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
             lineElement.setAttribute("y2", projectedPoint2.y.toString());
             lineElement.setAttribute("stroke", drawable.colour ?? PALETTE.line);
             lineElement.setAttribute("stroke-width", (options.lineThickness ?? 2).toString());
-            if (drawable.dashed) {
-                const thickness = Math.max(options.lineThickness ?? 2, 1);
-                lineElement.setAttribute("stroke-dasharray", `${thickness * 4} ${thickness * 3}`);
+            if (drawable.dashPattern !== undefined) {
+                lineElement.setAttribute("stroke-dasharray", `${drawable.dashPattern.dashLength} ${drawable.dashPattern.gapLength}`);
+                lineElement.setAttribute("stroke-dashoffset", drawable.dashPattern.dashOffset.toString());
             }
             lineElement.setAttribute("stroke-linecap", "round");
             lineElement.setAttribute("stroke-linejoin", "round");
@@ -109,11 +117,12 @@ function appendLineSegments(
     projectedPoint2: ProjectedPoint,
     projectedTriangles: ProjectedTri[],
     projectionType: ProjectionType,
+    lineThickness: number,
 ): void {
     const hiddenIntervals = getHiddenIntervalsForLine([projectedPoint1, projectedPoint2], projectedTriangles, projectionType);
     let currentStart = 0;
 
-    function pushSegment(startT: number, endT: number, dashed: boolean): void {
+    function pushSegment(startT: number, endT: number): void {
         if (endT - startT <= 1e-7) {
             return;
         }
@@ -125,17 +134,159 @@ function appendLineSegments(
             colour: line.colour,
             data: [startPoint, endPoint],
             depth: (startPoint.depth + endPoint.depth) / 2,
-            dashed,
         });
     }
 
+    function computeDashPattern(segmentStart: ProjectedPoint, segmentEnd: ProjectedPoint): DashPattern | undefined {
+        const segmentLength = Math.hypot(segmentEnd.x - segmentStart.x, segmentEnd.y - segmentStart.y);
+        if (segmentLength <= 1e-7) {
+            return undefined;
+        }
+
+        const strokeWidth = Math.min(Math.max(lineThickness, 1), 4);
+        const capMargin = strokeWidth / 2;
+        const preferredDash = strokeWidth * 4;
+        const preferredGap = strokeWidth * 3;
+        const minDash = strokeWidth * 2.5;
+        const maxDash = strokeWidth * 6.0;
+        const minGap = strokeWidth * 1.0;
+        const maxGap = strokeWidth * 4.5;
+        const step = strokeWidth * 0.25;
+
+        let bestPattern: DashPattern | undefined;
+        let bestScore = Number.POSITIVE_INFINITY;
+
+        for (let dashLength = minDash; dashLength <= maxDash + 1e-7; dashLength += step) {
+            if (dashLength <= capMargin * 2) {
+                continue;
+            }
+
+            for (let gapLength = minGap; gapLength <= maxGap + 1e-7; gapLength += step) {
+                const patternLength = dashLength + gapLength;
+                const startWindows = getDashPhaseWindows(0, dashLength, patternLength, capMargin);
+                const endWindows = getDashPhaseWindows(segmentLength, dashLength, patternLength, capMargin);
+                const overlapWindow = intersectWindows(startWindows, endWindows);
+
+                if (overlapWindow === null) {
+                    continue;
+                }
+
+                const [offsetStart, offsetEnd] = overlapWindow;
+                const dashOffset = -(offsetStart + offsetEnd) / 2;
+                const score = Math.abs(dashLength - preferredDash) + Math.abs(gapLength - preferredGap);
+
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestPattern = {
+                        dashLength,
+                        gapLength,
+                        dashOffset,
+                    };
+                }
+            }
+        }
+
+        return bestPattern;
+    }
+
+    function getDashPhaseWindows(pointPosition: number, dashLength: number, patternLength: number, capMargin: number): Interval1D[] {
+        const safeStart = capMargin;
+        const safeEnd = Math.max(capMargin, dashLength - capMargin);
+        if (safeEnd <= safeStart + 1e-7) {
+            return [];
+        }
+
+        const phase = ((pointPosition % patternLength) + patternLength) % patternLength;
+        const start = (phase - safeEnd + patternLength) % patternLength;
+        const end = (phase - safeStart + patternLength) % patternLength;
+
+        if (start <= end) {
+            return [[start, end]];
+        }
+
+        return [[start, patternLength], [0, end]];
+    }
+
+    function intersectWindows(windowsA: Interval1D[], windowsB: Interval1D[]): Interval1D | null {
+        let best: Interval1D | null = null;
+
+        for (const [startA, endA] of windowsA) {
+            for (const [startB, endB] of windowsB) {
+                const overlapStart = Math.max(startA, startB);
+                const overlapEnd = Math.min(endA, endB);
+                if (overlapEnd <= overlapStart + 1e-7) {
+                    continue;
+                }
+
+                if (best === null || overlapEnd - overlapStart > best[1] - best[0]) {
+                    best = [overlapStart, overlapEnd];
+                }
+            }
+        }
+
+        return best;
+    }
+
     for (const interval of hiddenIntervals) {
-        pushSegment(currentStart, interval.start, false);
-        pushSegment(interval.start, interval.end, true);
+        pushSegment(currentStart, interval.start);
+        const startT = interval.start;
+        const endT = interval.end;
+        const startPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, startT);
+        const endPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, endT);
+        const dashPattern = computeDashPattern(startPoint, endPoint);
+
+        if (dashPattern === undefined) {
+            // no dash pattern found -> render solid hidden interval
+            pushSegment(startT, endT);
+            currentStart = interval.end;
+            continue;
+        }
+
+        const segmentLength = Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+        const dashLen = dashPattern.dashLength;
+
+        // If the interval is too short to contain a full leading+trailing dash,
+        // just render it solid to guarantee endpoints are fully drawn.
+        if (segmentLength <= dashLen * 1.05) {
+            pushSegment(startT, endT);
+            currentStart = interval.end;
+            continue;
+        }
+
+        // Compute param t-length for a dash at the ends along this interval
+        const tDash = dashLen / segmentLength;
+        const midStartT = startT + (endT - startT) * tDash;
+        const midEndT = endT - (endT - startT) * tDash;
+
+        // Leading full dash (solid)
+        pushSegment(startT, midStartT);
+
+        // Middle: dashed body. Recompute a dash pattern for the middle piece so
+        // the dash/gap sizing is appropriate for its length (fallback to the
+        // original pattern if recompute fails).
+        const middleStartPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, midStartT);
+        const middleEndPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, midEndT);
+        let middlePattern = computeDashPattern(middleStartPoint, middleEndPoint);
+        if (middlePattern === undefined) {
+            middlePattern = dashPattern;
+        }
+
+        const middleDrawable: Drawable = {
+            type: "line",
+            colour: line.colour,
+            data: [middleStartPoint, middleEndPoint],
+            depth: (middleStartPoint.depth + middleEndPoint.depth) / 2,
+            dashPattern: middlePattern,
+        };
+        drawables.push(middleDrawable);
+
+        // Trailing full dash (solid)
+        pushSegment(midEndT, endT);
+
         currentStart = interval.end;
     }
 
-    pushSegment(currentStart, 1, false);
+    pushSegment(currentStart, 1);
 }
 
 export function drawScene(
@@ -198,7 +349,7 @@ export function drawScene(
             continue;
         }
 
-        appendLineSegments(drawables, line, projectedPoint1, projectedPoint2, projectedTriangles, camera.projectionType);
+        appendLineSegments(drawables, line, projectedPoint1, projectedPoint2, projectedTriangles, camera.projectionType, options.lineThickness ?? 2);
     }
 
     if (options.renderPoints) {
