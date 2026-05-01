@@ -4,7 +4,7 @@ export class Point {
     public z: number;
     public colour?: string | undefined;
 
-    constructor(x: number, y: number, z: number = 0, colour?: string) {
+    constructor(x: number, y: number, z: number, colour?: string) {
         this.x = x;
         this.y = y;
         this.z = z;
