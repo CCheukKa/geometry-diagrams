@@ -9,6 +9,12 @@ const PALETTE = {
     annotation: "#000000",
 };
 
+export type Annotation = {
+    text: string;
+    position: Point;
+    colour?: string;
+}
+
 export enum ProjectionType {
     PERSPECTIVE = "perspective",
     ORTHOGRAPHIC = "orthographic",
@@ -133,11 +139,56 @@ export class Camera {
     }
 };
 
-export type Annotation = {
-    text: string;
-    position: Point;
-    colour?: string;
+type ProjectedPoint = {
+    x: number;
+    y: number;
+    depth: number;
+    withinRenderFrustrum: boolean;
+    colour: string | undefined;
+};
+type ProjectedLine = [ProjectedPoint, ProjectedPoint];
+type ProjectedTri = [ProjectedPoint, ProjectedPoint, ProjectedPoint];
+
+function _project(camera: Camera, point: Point): ProjectedPoint {
+    const pointVector = new Vector([point.x, point.y, point.z, 1]);
+    const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
+    const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z });
+
+    // Extract x, y, z from the 3D result
+    const x_proj = projectedVector.at(0);
+    const y_proj = projectedVector.at(1);
+
+    if (camera.projectionType === ProjectionType.ORTHOGRAPHIC) {
+        return {
+            x: x_proj,
+            y: y_proj,
+            depth,
+            withinRenderFrustrum: true,
+            colour: point.colour,
+        };
+    }
+
+    if (depth <= 1e-6) {
+        return {
+            x: x_proj,
+            y: y_proj,
+            depth,
+            withinRenderFrustrum: false,
+            colour: point.colour,
+        };
+    }
+
+    // Perspective divide uses forward depth along the camera view direction.
+    return {
+        x: x_proj / depth,
+        y: y_proj / depth,
+        depth,
+        withinRenderFrustrum: true,
+        colour: point.colour,
+    };
 }
+
+/* -------------------------------------------------------------------------- */
 
 export type DrawOptions = {
     renderPoints?: boolean;
@@ -162,14 +213,6 @@ export function draw3D(
         lineThickness: 2,
     },
 ): void {
-    type ProjectedPoint = {
-        x: number;
-        y: number;
-        depth: number;
-        withinRenderFrustrum: boolean;
-        colour: string | undefined;
-    };
-
     enum DrawableType {
         POINT = "point",
         LINE = "line",
@@ -181,16 +224,11 @@ export function draw3D(
         depth: number;
         colour?: string | undefined;
     } & (
-            | { type: DrawableType.POINT; data: Point }
-            | { type: DrawableType.LINE; data: Line }
-            | { type: DrawableType.TRI; data: [ProjectedPoint, ProjectedPoint, ProjectedPoint] }
+            | { type: DrawableType.POINT; data: ProjectedPoint }
+            | { type: DrawableType.LINE; data: ProjectedLine, dashed?: boolean }
+            | { type: DrawableType.TRI; data: ProjectedTri }
             | { type: DrawableType.ANNOTATION; data: Annotation }
         );
-
-    /* -------------------------------------------------------------------------- */
-
-    paper.innerHTML = "";
-    drawGeometry();
 
     /* -------------------------------------------------------------------------- */
 
@@ -199,49 +237,17 @@ export function draw3D(
         if (projectCache.has(point)) {
             return projectCache.get(point)!;
         }
-        const projected = _project(point);
+        const projected = _project(camera, point);
         projectCache.set(point, projected);
         return projected;
-        /* -------------------------------------------------------------------------- */
-        function _project(point: Point): ProjectedPoint {
-            const pointVector = new Vector([point.x, point.y, point.z, 1]);
-            const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
-            const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z });
-
-            // Extract x, y, z from the 3D result
-            const x_proj = projectedVector.at(0);
-            const y_proj = projectedVector.at(1);
-
-            if (camera.projectionType === ProjectionType.ORTHOGRAPHIC) {
-                return {
-                    x: x_proj,
-                    y: y_proj,
-                    depth,
-                    withinRenderFrustrum: true,
-                    colour: point.colour,
-                };
-            }
-
-            if (depth <= 1e-6) {
-                return {
-                    x: x_proj,
-                    y: y_proj,
-                    depth,
-                    withinRenderFrustrum: false,
-                    colour: point.colour,
-                };
-            }
-
-            // Perspective divide uses forward depth along the camera view direction.
-            return {
-                x: x_proj / depth,
-                y: y_proj / depth,
-                depth,
-                withinRenderFrustrum: true,
-                colour: point.colour,
-            };
-        }
     }
+
+    /* -------------------------------------------------------------------------- */
+
+    paper.innerHTML = "";
+    drawGeometry();
+
+    /* -------------------------------------------------------------------------- */
 
     function drawGeometry() {
         const drawables: Drawable[] = [];
@@ -265,12 +271,14 @@ export function draw3D(
             const [point1, point2] = line.points;
             const projectedPoint1 = project(point1);
             const projectedPoint2 = project(point2);
+            const averageDepth = (projectedPoint1.depth + projectedPoint2.depth) / 2;
             if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.withinRenderFrustrum || !projectedPoint2.withinRenderFrustrum)) { continue; }
+
             drawables.push({
                 type: DrawableType.LINE,
                 colour: line.colour,
-                data: line,
-                depth: (projectedPoint1.depth + projectedPoint2.depth) / 2,
+                data: [projectedPoint1, projectedPoint2],
+                depth: averageDepth,
             });
         }
 
@@ -282,7 +290,7 @@ export function draw3D(
                     type: DrawableType.POINT,
                     depth: projectedPoint.depth,
                     colour: projectedPoint.colour,
-                    data: point,
+                    data: projectedPoint,
                 });
             }
         }
@@ -303,7 +311,7 @@ export function draw3D(
         for (const drawable of drawables) {
             switch (drawable.type) {
                 case DrawableType.POINT: {
-                    const projectedPoint = project(drawable.data);
+                    const projectedPoint = drawable.data;
                     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                     circle.setAttribute("cx", projectedPoint.x.toString());
                     circle.setAttribute("cy", projectedPoint.y.toString());
@@ -313,16 +321,13 @@ export function draw3D(
                     break;
                 }
                 case DrawableType.LINE: {
-                    const line = drawable.data;
-                    const [point1, point2] = line.points;
-                    const projectedPoint1 = project(point1);
-                    const projectedPoint2 = project(point2);
+                    const [projectedPoint1, projectedPoint2] = drawable.data;
                     const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
                     lineElement.setAttribute("x1", projectedPoint1.x.toString());
                     lineElement.setAttribute("y1", projectedPoint1.y.toString());
                     lineElement.setAttribute("x2", projectedPoint2.x.toString());
                     lineElement.setAttribute("y2", projectedPoint2.y.toString());
-                    lineElement.setAttribute("stroke", line.colour ?? PALETTE.line);
+                    lineElement.setAttribute("stroke", drawable.colour ?? PALETTE.line);
                     lineElement.setAttribute("stroke-width", (options.lineThickness ?? 2).toString());
                     lineElement.setAttribute("stroke-linecap", "round");
                     lineElement.setAttribute("stroke-linejoin", "round");
