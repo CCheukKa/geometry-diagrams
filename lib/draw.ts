@@ -25,7 +25,7 @@ export type Annotation = {
 };
 
 export type DrawOptions = {
-    renderVertices?: boolean;
+    vertexSize?: number;
     renderAnnotations?: boolean;
     triangleOpacity?: number;
     annotationsAlwaysOnTop?: boolean;
@@ -33,7 +33,7 @@ export type DrawOptions = {
 };
 
 type Drawable =
-    | { type: "vertex"; depth: number; colour: string | undefined; data: ProjectedVertex }
+    | { type: "vertex"; depth: number; colour: string | undefined; data: ProjectedVertex & { size: number } }
     | { type: "edge"; depth: number; colour: string | undefined; data: ProjectedEdge; dashPattern?: DashPattern }
     | { type: "triangle"; depth: number; colour: string | undefined; data: ProjectedTriangle }
     | { type: "annotation"; depth: number; data: { annotation: Annotation; projectedPosition: ProjectedVertex } };
@@ -53,11 +53,11 @@ function createSvgElement(tagName: string): SVGElement {
 function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, options: DrawOptions): void {
     switch (drawable.type) {
         case "vertex": {
-            const projectedVertex = drawable.data;
+            const projectedVertex = drawable.data as ProjectedVertex & { size: number };
             const circle = createSvgElement("circle");
             circle.setAttribute("cx", projectedVertex.x.toString());
             circle.setAttribute("cy", projectedVertex.y.toString());
-            circle.setAttribute("r", "5");
+            circle.setAttribute("r", projectedVertex.size.toString());
             circle.setAttribute("fill", projectedVertex.colour ?? PALETTE.vertex);
             paper.appendChild(circle);
             break;
@@ -297,7 +297,7 @@ export function drawScene(
     triangles: Triangle[],
     annotations: Annotation[],
     options: DrawOptions = {
-        renderVertices: true,
+        vertexSize: 5,
         renderAnnotations: true,
         triangleOpacity: 0.1,
         annotationsAlwaysOnTop: true,
@@ -352,7 +352,8 @@ export function drawScene(
         appendEdgeSegments(drawables, edge, projectedVertex1, projectedVertex2, projectedTriangles, camera.projectionType, options.edgeThickness ?? 2);
     }
 
-    if (options.renderVertices) {
+    const vertexSize = options.vertexSize ?? 0;
+    if (vertexSize > 0) {
         for (const vertex of vertices) {
             const projectedVertex = project(vertex);
             if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedVertex.withinRenderFrustrum) {
@@ -363,7 +364,7 @@ export function drawScene(
                 type: "vertex",
                 depth: projectedVertex.depth,
                 colour: projectedVertex.colour,
-                data: projectedVertex,
+                data: { ...projectedVertex, size: vertexSize },
             });
         }
     }

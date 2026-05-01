@@ -21,7 +21,7 @@ const cameraYawInput = document.getElementById("cameraOrbitYaw") as HTMLInputEle
 const orthographicCheckbox = document.getElementById("orthographic") as HTMLInputElement;
 const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HTMLInputElement;
 const showAnnotationsOnTopCheckbox = document.getElementById("showAnnotationsOnTop") as HTMLInputElement;
-const showVerticesCheckbox = document.getElementById("showVertices") as HTMLInputElement;
+const vertexSizeInput = document.getElementById("vertexSize") as HTMLInputElement;
 const triangleOpacityInput = document.getElementById("triangleOpacity") as HTMLInputElement;
 const edgeThicknessInput = document.getElementById("edgeThickness") as HTMLInputElement;
 const pngExportScaleInput = document.getElementById("pngExportScale") as HTMLInputElement;
@@ -91,7 +91,7 @@ cameraPitchInput.oninput = updateCameraPosition;
 cameraYawInput.oninput = updateCameraPosition;
 showAnnotationsCheckbox.onchange = renderScene;
 showAnnotationsOnTopCheckbox.onchange = renderScene;
-showVerticesCheckbox.onchange = renderScene;
+vertexSizeInput.oninput = renderScene;
 triangleOpacityInput.oninput = renderScene;
 edgeThicknessInput.oninput = renderScene;
 exportSvgBtn.onclick = exportSvg;
@@ -276,7 +276,7 @@ function renderScene() {
         [...annotations, ...editorAnnotations],
         {
             renderAnnotations: showAnnotationsCheckbox.checked,
-            renderVertices: showVerticesCheckbox.checked,
+            vertexSize: parseFloat(vertexSizeInput.value),
             edgeThickness: parseFloat(edgeThicknessInput.value),
             triangleOpacity: parseFloat(triangleOpacityInput.value),
             annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
