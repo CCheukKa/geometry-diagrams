@@ -18,6 +18,7 @@ const sceneEditor = new SceneEditor();
 const cameraRadiusInput = document.getElementById("cameraOrbitRadius") as HTMLInputElement;
 const cameraPitchInput = document.getElementById("cameraOrbitPitch") as HTMLInputElement;
 const cameraYawInput = document.getElementById("cameraOrbitYaw") as HTMLInputElement;
+const cameraFocalLengthInput = document.getElementById("cameraFocalLength") as HTMLInputElement;
 const orthographicCheckbox = document.getElementById("orthographic") as HTMLInputElement;
 const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HTMLInputElement;
 const showAnnotationsOnTopCheckbox = document.getElementById("showAnnotationsOnTop") as HTMLInputElement;
@@ -89,6 +90,11 @@ const constraintKinds: ConstraintKind[] = [
 cameraRadiusInput.oninput = updateCameraPosition;
 cameraPitchInput.oninput = updateCameraPosition;
 cameraYawInput.oninput = updateCameraPosition;
+cameraFocalLengthInput.oninput = () => {
+    const focalLength = parseFloat(cameraFocalLengthInput.value);
+    camera.focalLengths = { x: focalLength, y: focalLength };
+    renderScene();
+};
 showAnnotationsCheckbox.onchange = renderScene;
 showAnnotationsOnTopCheckbox.onchange = renderScene;
 vertexSizeInput.oninput = renderScene;

@@ -66,6 +66,33 @@ export class Camera {
         this.updateCameraMatrices();
     }
 
+    get focalLengths(): Vector2D {
+        return this._focalLengths;
+    }
+
+    set focalLengths(focalLengths: Vector2D) {
+        this._focalLengths = focalLengths;
+        this.updateCameraMatrices();
+    }
+
+    get principalVertex(): Vector2D {
+        return this._principalVertex;
+    }
+
+    set principalVertex(principalVertex: Vector2D) {
+        this._principalVertex = principalVertex;
+        this.updateCameraMatrices();
+    }
+
+    get skewCoefficient(): number {
+        return this._skewCoefficient;
+    }
+
+    set skewCoefficient(skewCoefficient: number) {
+        this._skewCoefficient = skewCoefficient;
+        this.updateCameraMatrices();
+    }
+
     public getForwardDepth(vertex: Vector3D): number {
         const forward = toVector3D(toVector(this._lookAtTarget).subtract(toVector(this._position)).normalize());
         const delta = {
