@@ -16,225 +16,230 @@
         <script defer src="index.ts"></script>
     </head>
     <body>
-        <svg id="paper" width="400" height="400"></svg>
-        <div class="control-menu">
-            <details class="panel" open>
-                <summary>Rendering Controls</summary>
-                <div class="panel-body">
-                    <label class="control-row" for="orthographic">
-                        <span>Orthographic Projection</span>
-                        <input type="checkbox" id="orthographic" />
-                    </label>
-                    <label class="control-row" for="showAnnotations">
-                        <span>Show Annotations</span>
-                        <input type="checkbox" id="showAnnotations" checked />
-                    </label>
-                    <label class="control-row" for="showAnnotationsOnTop">
-                        <span>Always Show Annotations On Top</span>
-                        <input type="checkbox" id="showAnnotationsOnTop" checked />
-                    </label>
-                    <label class="control-row" for="showVertices">
-                        <span>Show Vertices</span>
-                        <input type="checkbox" id="showVertices" checked />
-                    </label>
-                    <label class="control-stack" for="edgeThickness">
-                        <span>Edge Thickness</span>
-                        <input type="range" id="edgeThickness" value="2" min="0" max="10" step="0.1" />
-                    </label>
-                    <label class="control-stack" for="triangleOpacity">
-                        <span>Triangle Opacity</span>
-                        <input type="range" id="triangleOpacity" value="0.1" min="0" max="1" step="0.01" />
-                    </label>
-                    <label class="control-stack" for="cameraOrbitRadius">
-                        <span>Camera Orbit Radius</span>
-                        <input type="range" id="cameraOrbitRadius" value="460" min="0" max="1000" />
-                    </label>
-                    <label class="control-stack" for="cameraOrbitYaw">
-                        <span>Camera Orbit Yaw</span>
-                        <input type="range" id="cameraOrbitYaw" value="340" min="0" max="360" />
-                    </label>
-                    <label class="control-stack" for="cameraOrbitPitch">
-                        <span>Camera Orbit Pitch</span>
-                        <input type="range" id="cameraOrbitPitch" value="150" min="0" max="360" />
-                    </label>
-                </div>
-            </details>
+        <div class="app-shell">
+            <aside class="control-window">
+                <details class="panel" open>
+                    <summary>Rendering Controls</summary>
+                    <div class="panel-body">
+                        <label class="control-row" for="orthographic">
+                            <span>Orthographic Projection</span>
+                            <input type="checkbox" id="orthographic" />
+                        </label>
+                        <label class="control-row" for="showAnnotations">
+                            <span>Show Annotations</span>
+                            <input type="checkbox" id="showAnnotations" checked />
+                        </label>
+                        <label class="control-row" for="showAnnotationsOnTop">
+                            <span>Always Show Annotations On Top</span>
+                            <input type="checkbox" id="showAnnotationsOnTop" checked />
+                        </label>
+                        <label class="control-row" for="showVertices">
+                            <span>Show Vertices</span>
+                            <input type="checkbox" id="showVertices" checked />
+                        </label>
+                        <label class="control-stack" for="edgeThickness">
+                            <span>Edge Thickness</span>
+                            <input type="range" id="edgeThickness" value="2" min="0" max="10" step="0.1" />
+                        </label>
+                        <label class="control-stack" for="triangleOpacity">
+                            <span>Triangle Opacity</span>
+                            <input type="range" id="triangleOpacity" value="0.1" min="0" max="1" step="0.01" />
+                        </label>
+                        <label class="control-stack" for="cameraOrbitRadius">
+                            <span>Camera Orbit Radius</span>
+                            <input type="range" id="cameraOrbitRadius" value="460" min="0" max="1000" />
+                        </label>
+                        <label class="control-stack" for="cameraOrbitYaw">
+                            <span>Camera Orbit Yaw</span>
+                            <input type="range" id="cameraOrbitYaw" value="340" min="0" max="360" />
+                        </label>
+                        <label class="control-stack" for="cameraOrbitPitch">
+                            <span>Camera Orbit Pitch</span>
+                            <input type="range" id="cameraOrbitPitch" value="150" min="0" max="360" />
+                        </label>
+                    </div>
+                </details>
+            </aside>
 
-            <details class="panel" open>
-                <summary>Scene Editor</summary>
-                <div class="panel-body">
-                    <section class="editor-card">
-                        <h3>Add Point</h3>
-                        <div class="editor-grid editor-grid-4">
-                            <label>
-                                <span>Name</span>
-                                <input type="text" id="pointName" placeholder="A" />
-                            </label>
-                            <label>
-                                <span>X</span>
-                                <input type="number" id="pointX" value="0" />
-                            </label>
-                            <label>
-                                <span>Y</span>
-                                <input type="number" id="pointY" value="0" />
-                            </label>
-                            <label>
-                                <span>Z</span>
-                                <input type="number" id="pointZ" value="0" />
-                            </label>
-                        </div>
-                        <button id="addPointBtn" type="button">Add Point</button>
-                    </section>
+            <svg id="paper" width="400" height="400"></svg>
 
-                    <section class="editor-card">
-                        <h3>Add Line</h3>
-                        <div class="editor-grid editor-grid-3">
-                            <label>
-                                <span>Name</span>
-                                <input type="text" id="lineName" placeholder="AB" />
-                            </label>
-                            <label>
-                                <span>Point A</span>
-                                <select id="linePointA"></select>
-                            </label>
-                            <label>
-                                <span>Point B</span>
-                                <select id="linePointB"></select>
-                            </label>
-                        </div>
-                        <button id="addLineBtn" type="button">Add Line</button>
-                    </section>
-
-                    <section class="editor-card">
-                        <h3>Add Plane</h3>
-                        <div class="editor-grid editor-grid-4">
-                            <label>
-                                <span>Name</span>
-                                <input type="text" id="planeName" placeholder="ABC" />
-                            </label>
-                            <label>
-                                <span>Point A</span>
-                                <select id="planePointA"></select>
-                            </label>
-                            <label>
-                                <span>Point B</span>
-                                <select id="planePointB"></select>
-                            </label>
-                            <label>
-                                <span>Point C</span>
-                                <select id="planePointC"></select>
-                            </label>
-                        </div>
-                        <button id="addPlaneBtn" type="button">Add Plane</button>
-                    </section>
-
-                    <section class="editor-card">
-                        <h3>Add Polygon</h3>
-                        <div class="editor-grid editor-grid-2">
-                            <label>
-                                <span>Name</span>
-                                <input type="text" id="polygonName" placeholder="ABCD" />
-                            </label>
-                            <label>
-                                <span>Points</span>
-                                <select id="polygonPoints" multiple size="5"></select>
-                            </label>
-                        </div>
-                        <button id="addPolygonBtn" type="button">Add Polygon</button>
-                    </section>
-
-                    <section class="editor-card">
-                        <h3>Add Constraint</h3>
-                        <div class="editor-grid editor-grid-4">
-                            <label>
-                                <span>Type</span>
-                                <select id="constraintType"></select>
-                            </label>
-                            <label>
-                                <span>Point 1</span>
-                                <select id="constraintPointA"></select>
-                            </label>
-                            <label>
-                                <span>Point 2</span>
-                                <select id="constraintPointB"></select>
-                            </label>
-                            <label>
-                                <span>Point 3</span>
-                                <select id="constraintPointC"></select>
-                            </label>
-                            <label>
-                                <span>Point 4</span>
-                                <select id="constraintPointD"></select>
-                            </label>
-                            <label>
-                                <span>Line 1</span>
-                                <select id="constraintLineA"></select>
-                            </label>
-                            <label>
-                                <span>Line 2</span>
-                                <select id="constraintLineB"></select>
-                            </label>
-                            <label>
-                                <span>Plane</span>
-                                <select id="constraintPlane"></select>
-                            </label>
-                            <label>
-                                <span>Polygon</span>
-                                <select id="constraintPolygon"></select>
-                            </label>
-                            <label>
-                                <span>X</span>
-                                <input type="number" id="constraintValueX" step="0.1" placeholder="optional" />
-                            </label>
-                            <label>
-                                <span>Y</span>
-                                <input type="number" id="constraintValueY" step="0.1" placeholder="optional" />
-                            </label>
-                            <label>
-                                <span>Z</span>
-                                <input type="number" id="constraintValueZ" step="0.1" placeholder="optional" />
-                            </label>
-                            <label>
-                                <span>Length</span>
-                                <input type="number" id="constraintLength" step="0.1" placeholder="optional" />
-                            </label>
-                            <label>
-                                <span>Angle (deg)</span>
-                                <input type="number" id="constraintAngle" step="0.1" placeholder="optional" />
-                            </label>
-                        </div>
-                        <button id="addConstraintBtn" type="button">Add Constraint</button>
-                    </section>
-
-                    <section class="editor-card">
-                        <h3>Scene Summary</h3>
-                        <div class="scene-list-grid">
-                            <div>
-                                <h4>Points</h4>
-                                <ul id="pointsList"></ul>
+            <aside class="editor-window">
+                <details class="panel" open>
+                    <summary>Scene Editor</summary>
+                    <div class="panel-body">
+                        <section class="editor-card">
+                            <h3>Add Point</h3>
+                            <div class="editor-grid editor-grid-4">
+                                <label>
+                                    <span>Name</span>
+                                    <input type="text" id="pointName" placeholder="A" />
+                                </label>
+                                <label>
+                                    <span>X</span>
+                                    <input type="number" id="pointX" value="0" />
+                                </label>
+                                <label>
+                                    <span>Y</span>
+                                    <input type="number" id="pointY" value="0" />
+                                </label>
+                                <label>
+                                    <span>Z</span>
+                                    <input type="number" id="pointZ" value="0" />
+                                </label>
                             </div>
-                            <div>
-                                <h4>Lines</h4>
-                                <ul id="linesList"></ul>
+                            <button id="addPointBtn" type="button">Add Point</button>
+                        </section>
+
+                        <section class="editor-card">
+                            <h3>Add Line</h3>
+                            <div class="editor-grid editor-grid-3">
+                                <label>
+                                    <span>Name</span>
+                                    <input type="text" id="lineName" placeholder="AB" />
+                                </label>
+                                <label>
+                                    <span>Point A</span>
+                                    <select id="linePointA"></select>
+                                </label>
+                                <label>
+                                    <span>Point B</span>
+                                    <select id="linePointB"></select>
+                                </label>
                             </div>
-                            <div>
-                                <h4>Planes</h4>
-                                <ul id="planesList"></ul>
+                            <button id="addLineBtn" type="button">Add Line</button>
+                        </section>
+
+                        <section class="editor-card">
+                            <h3>Add Plane</h3>
+                            <div class="editor-grid editor-grid-4">
+                                <label>
+                                    <span>Name</span>
+                                    <input type="text" id="planeName" placeholder="ABC" />
+                                </label>
+                                <label>
+                                    <span>Point A</span>
+                                    <select id="planePointA"></select>
+                                </label>
+                                <label>
+                                    <span>Point B</span>
+                                    <select id="planePointB"></select>
+                                </label>
+                                <label>
+                                    <span>Point C</span>
+                                    <select id="planePointC"></select>
+                                </label>
                             </div>
-                            <div>
-                                <h4>Polygons</h4>
-                                <ul id="polygonsList"></ul>
+                            <button id="addPlaneBtn" type="button">Add Plane</button>
+                        </section>
+
+                        <section class="editor-card">
+                            <h3>Add Polygon</h3>
+                            <div class="editor-grid editor-grid-2">
+                                <label>
+                                    <span>Name</span>
+                                    <input type="text" id="polygonName" placeholder="ABCD" />
+                                </label>
+                                <label>
+                                    <span>Points</span>
+                                    <select id="polygonPoints" multiple size="5"></select>
+                                </label>
                             </div>
-                            <div class="scene-list-wide">
-                                <h4>Constraints</h4>
-                                <ul id="constraintsList"></ul>
+                            <button id="addPolygonBtn" type="button">Add Polygon</button>
+                        </section>
+
+                        <section class="editor-card">
+                            <h3>Add Constraint</h3>
+                            <div class="editor-grid editor-grid-4">
+                                <label>
+                                    <span>Type</span>
+                                    <select id="constraintType"></select>
+                                </label>
+                                <label>
+                                    <span>Point 1</span>
+                                    <select id="constraintPointA"></select>
+                                </label>
+                                <label>
+                                    <span>Point 2</span>
+                                    <select id="constraintPointB"></select>
+                                </label>
+                                <label>
+                                    <span>Point 3</span>
+                                    <select id="constraintPointC"></select>
+                                </label>
+                                <label>
+                                    <span>Point 4</span>
+                                    <select id="constraintPointD"></select>
+                                </label>
+                                <label>
+                                    <span>Line 1</span>
+                                    <select id="constraintLineA"></select>
+                                </label>
+                                <label>
+                                    <span>Line 2</span>
+                                    <select id="constraintLineB"></select>
+                                </label>
+                                <label>
+                                    <span>Plane</span>
+                                    <select id="constraintPlane"></select>
+                                </label>
+                                <label>
+                                    <span>Polygon</span>
+                                    <select id="constraintPolygon"></select>
+                                </label>
+                                <label>
+                                    <span>X</span>
+                                    <input type="number" id="constraintValueX" step="0.1" placeholder="optional" />
+                                </label>
+                                <label>
+                                    <span>Y</span>
+                                    <input type="number" id="constraintValueY" step="0.1" placeholder="optional" />
+                                </label>
+                                <label>
+                                    <span>Z</span>
+                                    <input type="number" id="constraintValueZ" step="0.1" placeholder="optional" />
+                                </label>
+                                <label>
+                                    <span>Length</span>
+                                    <input type="number" id="constraintLength" step="0.1" placeholder="optional" />
+                                </label>
+                                <label>
+                                    <span>Angle (deg)</span>
+                                    <input type="number" id="constraintAngle" step="0.1" placeholder="optional" />
+                                </label>
                             </div>
-                        </div>
-                        <p id="editorStatus" class="editor-status" aria-live="polite"></p>
-                        <button id="solveBtn" class="solve-button" type="button">Solve</button>
-                    </section>
-                </div>
-            </details>
+                            <button id="addConstraintBtn" type="button">Add Constraint</button>
+                        </section>
+
+                        <section class="editor-card">
+                            <h3>Scene Summary</h3>
+                            <div class="scene-list-grid">
+                                <div>
+                                    <h4>Points</h4>
+                                    <ul id="pointsList"></ul>
+                                </div>
+                                <div>
+                                    <h4>Lines</h4>
+                                    <ul id="linesList"></ul>
+                                </div>
+                                <div>
+                                    <h4>Planes</h4>
+                                    <ul id="planesList"></ul>
+                                </div>
+                                <div>
+                                    <h4>Polygons</h4>
+                                    <ul id="polygonsList"></ul>
+                                </div>
+                                <div class="scene-list-wide">
+                                    <h4>Constraints</h4>
+                                    <ul id="constraintsList"></ul>
+                                </div>
+                            </div>
+                            <p id="editorStatus" class="editor-status" aria-live="polite"></p>
+                            <button id="solveBtn" class="solve-button" type="button">Solve</button>
+                        </section>
+                    </div>
+                </details>
+            </aside>
         </div>
     </body>
 </html>
