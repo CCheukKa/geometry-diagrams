@@ -3,6 +3,7 @@ import { Camera, ProjectionType } from "@lib/camera";
 import { Triangle, Edge, Vertex } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { SceneEditor, type AddConstraintInput, type ConstraintKind } from "@lib/editor";
+import { projectVertex } from "@lib/renderGeometry";
 import { Quat } from "ts-matrix";
 
 const HEIGHT = 500;
@@ -23,6 +24,9 @@ const showAnnotationsOnTopCheckbox = document.getElementById("showAnnotationsOnT
 const showVerticesCheckbox = document.getElementById("showVertices") as HTMLInputElement;
 const triangleOpacityInput = document.getElementById("triangleOpacity") as HTMLInputElement;
 const edgeThicknessInput = document.getElementById("edgeThickness") as HTMLInputElement;
+const pngExportScaleInput = document.getElementById("pngExportScale") as HTMLInputElement;
+const exportSvgBtn = document.getElementById("exportSvgBtn") as HTMLButtonElement;
+const exportPngBtn = document.getElementById("exportPngBtn") as HTMLButtonElement;
 
 const pointNameInput = document.getElementById("pointName") as HTMLInputElement;
 const pointXInput = document.getElementById("pointX") as HTMLInputElement;
@@ -90,6 +94,8 @@ showAnnotationsOnTopCheckbox.onchange = renderScene;
 showVerticesCheckbox.onchange = renderScene;
 triangleOpacityInput.oninput = renderScene;
 edgeThicknessInput.oninput = renderScene;
+exportSvgBtn.onclick = exportSvg;
+exportPngBtn.onclick = exportPng;
 orthographicCheckbox.onchange = () => {
     camera.projectionType = orthographicCheckbox.checked ? ProjectionType.ORTHOGRAPHIC : ProjectionType.PERSPECTIVE;
     renderScene();
@@ -228,6 +234,7 @@ const camera = new Camera(
     },
     { x: 1, y: 1 },
 );
+
 populateConstraintKinds();
 refreshEditorUi();
 updateCameraPosition();
@@ -275,6 +282,138 @@ function renderScene() {
             annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
         },
     );
+}
+
+function exportSvg() {
+    const { svg } = createCroppedExportSvg();
+    const serializedSvg = `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(svg)}`;
+    downloadBlob(new Blob([serializedSvg], { type: "image/svg+xml;charset=utf-8" }), "geometry-diagrams.svg");
+}
+
+async function exportPng() {
+    const { svg, width, height } = createCroppedExportSvg();
+    const exportScale = parseFloat(pngExportScaleInput.value) || 4;
+    const serializedSvg = `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(svg)}`;
+    const blob = new Blob([serializedSvg], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(blob);
+
+    try {
+        const image = new Image();
+        image.decoding = "async";
+        image.src = svgUrl;
+        await image.decode();
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.ceil(width * exportScale));
+        canvas.height = Math.max(1, Math.ceil(height * exportScale));
+
+        const context = canvas.getContext("2d");
+        if (context === null) {
+            throw new Error("Unable to create canvas context");
+        }
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const pngBlob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(result => {
+                if (result === null) {
+                    reject(new Error("Unable to export PNG"));
+                    return;
+                }
+
+                resolve(result);
+            }, "image/png");
+        });
+
+        downloadBlob(pngBlob, "geometry-diagrams.png");
+    } finally {
+        URL.revokeObjectURL(svgUrl);
+    }
+}
+
+function createCroppedExportSvg(): { svg: SVGSVGElement; width: number; height: number } {
+    const bounds = getSvgContentBounds();
+    const focusPoint = projectVertex(camera, new Vertex(camera.lookAtTarget.x, camera.lookAtTarget.y, camera.lookAtTarget.z));
+    const padding = Math.max(12, parseFloat(edgeThicknessInput.value) * 3);
+    const halfWidth = Math.max(focusPoint.x - bounds.x, bounds.x + bounds.width - focusPoint.x, 0);
+    const halfHeight = Math.max(focusPoint.y - bounds.y, bounds.y + bounds.height - focusPoint.y, 0);
+    const exportWidth = Math.max(halfWidth * 2 + padding * 2, 1);
+    const exportHeight = Math.max(halfHeight * 2 + padding * 2, 1);
+    const exportX = focusPoint.x - halfWidth - padding;
+    const exportY = focusPoint.y - halfHeight - padding;
+
+    const exportedSvg = paperElement.cloneNode(true) as SVGSVGElement;
+    exportedSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    exportedSvg.setAttribute("viewBox", `${exportX} ${exportY} ${exportWidth} ${exportHeight}`);
+    exportedSvg.setAttribute("width", exportWidth.toFixed(2));
+    exportedSvg.setAttribute("height", exportHeight.toFixed(2));
+    exportedSvg.removeAttribute("style");
+
+    return {
+        svg: exportedSvg,
+        width: exportWidth,
+        height: exportHeight,
+    };
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+    const url = URL.createObjectURL(blob);
+    const downloadLink = document.createElement("a");
+
+    downloadLink.href = url;
+    downloadLink.download = fileName;
+    downloadLink.click();
+
+    URL.revokeObjectURL(url);
+}
+
+function getSvgContentBounds(): { x: number; y: number; width: number; height: number } {
+    const graphicsElements = Array.from(paperElement.children).filter((element): element is SVGGraphicsElement =>
+        typeof (element as SVGGraphicsElement).getBBox === "function",
+    );
+
+    if (graphicsElements.length === 0) {
+        const fallbackWidth = WIDTH;
+        const fallbackHeight = HEIGHT;
+        return {
+            x: -fallbackWidth / 2,
+            y: -fallbackHeight / 2,
+            width: fallbackWidth,
+            height: fallbackHeight,
+        };
+    }
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const element of graphicsElements) {
+        const box = element.getBBox();
+        const strokeWidth = parseFloat(element.getAttribute("stroke-width") ?? "0") || 0;
+        const strokePadding = strokeWidth / 2;
+        minX = Math.min(minX, box.x - strokePadding);
+        minY = Math.min(minY, box.y - strokePadding);
+        maxX = Math.max(maxX, box.x + box.width + strokePadding);
+        maxY = Math.max(maxY, box.y + box.height + strokePadding);
+    }
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+        return {
+            x: -WIDTH / 2,
+            y: -HEIGHT / 2,
+            width: WIDTH,
+            height: HEIGHT,
+        };
+    }
+
+    return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+    };
 }
 
 /* -------------------------------------------------------------------------- */

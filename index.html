@@ -57,6 +57,14 @@
                             <span>Camera Orbit Pitch</span>
                             <input type="range" id="cameraOrbitPitch" value="150" min="0" max="360" />
                         </label>
+                        <button id="exportSvgBtn" type="button" class="control-action">Export SVG</button>
+                        <div class="export-row">
+                            <label class="export-scale" for="pngExportScale">
+                                <input type="number" id="pngExportScale" value="4" min="1" max="8" step="1" />
+                                <span>×</span>
+                            </label>
+                            <button id="exportPngBtn" type="button" class="control-action">Export PNG</button>
+                        </div>
                     </div>
                 </details>
             </aside>

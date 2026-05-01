@@ -48,6 +48,10 @@ export class Camera {
         this.updateCameraMatrices();
     }
 
+    get lookAtTarget(): Vector3D {
+        return this._lookAtTarget;
+    }
+
     set upHint(upHint: Vector3D) {
         this._upHint = upHint;
         this.updateCameraMatrices();
