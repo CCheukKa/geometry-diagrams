@@ -1,4 +1,5 @@
-import { Camera, draw3D, ProjectionType } from "@lib/draw";
+import { drawScene } from "@lib/draw";
+import { Camera, ProjectionType } from "@lib/camera";
 import { Tri, Line, Point } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { Quat } from "ts-matrix";
@@ -125,7 +126,7 @@ function updateCameraPosition() {
     renderScene();
 }
 function renderScene() {
-    draw3D(
+    drawScene(
         paperElement,
         camera,
         points,
