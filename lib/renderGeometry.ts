@@ -1,9 +1,9 @@
-import type { Point } from "@lib/geometry";
+import type { Vertex } from "@lib/geometry";
 import { Vector } from "ts-matrix";
 import { barycentricCoordinates2D, cross2D, dot3, lerp, orient2D, subtract2D, triangleNormal, type Vector3D } from "./mathExtra";
 import { Camera, ProjectionType } from "@lib/camera";
 
-export type ProjectedPoint = {
+export type ProjectedVertex = {
     x: number;
     y: number;
     depth: number;
@@ -12,8 +12,8 @@ export type ProjectedPoint = {
     cameraSpace: Vector3D;
 };
 
-export type ProjectedLine = [ProjectedPoint, ProjectedPoint];
-export type ProjectedTri = [ProjectedPoint, ProjectedPoint, ProjectedPoint];
+export type ProjectedEdge = [ProjectedVertex, ProjectedVertex];
+export type ProjectedTriangle = [ProjectedVertex, ProjectedVertex, ProjectedVertex];
 
 export type Interval = {
     start: number;
@@ -23,12 +23,12 @@ export type Interval = {
 const GEOMETRY_EPSILON = 1e-7;
 const DEPTH_EPSILON = 1e-6;
 
-function triangleSignedArea2D(triangle: ProjectedTri): number {
+function triangleSignedArea2D(triangle: ProjectedTriangle): number {
     return orient2D(triangle[0], triangle[1], triangle[2]);
 }
 
-function isStrictlyInsideTriangle(point: { x: number; y: number }, triangle: ProjectedTri): boolean {
-    const weights = barycentricCoordinates2D(point, triangle);
+function isStrictlyInsideTriangle(vertex: { x: number; y: number }, triangle: ProjectedTriangle): boolean {
+    const weights = barycentricCoordinates2D(vertex, triangle);
     if (weights === null) {
         return false;
     }
@@ -36,25 +36,25 @@ function isStrictlyInsideTriangle(point: { x: number; y: number }, triangle: Pro
     return weights[0] > GEOMETRY_EPSILON && weights[1] > GEOMETRY_EPSILON && weights[2] > GEOMETRY_EPSILON;
 }
 
-function lineSegmentIntersectionParameter(
-    lineStart: { x: number; y: number },
-    lineEnd: { x: number; y: number },
+function edgeSegmentIntersectionParameter(
+    edgeStart: { x: number; y: number },
+    edgeEnd: { x: number; y: number },
     segmentStart: { x: number; y: number },
     segmentEnd: { x: number; y: number },
 ): number | null {
-    const lineVector = subtract2D(lineEnd, lineStart);
+    const edgeVector = subtract2D(edgeEnd, edgeStart);
     const segmentVector = subtract2D(segmentEnd, segmentStart);
-    const denominator = cross2D(lineVector, segmentVector);
+    const denominator = cross2D(edgeVector, segmentVector);
 
     if (Math.abs(denominator) < GEOMETRY_EPSILON) {
         return null;
     }
 
-    const difference = subtract2D(segmentStart, lineStart);
-    const lineParameter = cross2D(difference, segmentVector) / denominator;
-    const segmentParameter = cross2D(difference, lineVector) / denominator;
+    const difference = subtract2D(segmentStart, edgeStart);
+    const edgeParameter = cross2D(difference, segmentVector) / denominator;
+    const segmentParameter = cross2D(difference, edgeVector) / denominator;
 
-    if (lineParameter < -GEOMETRY_EPSILON || lineParameter > 1 + GEOMETRY_EPSILON) {
+    if (edgeParameter < -GEOMETRY_EPSILON || edgeParameter > 1 + GEOMETRY_EPSILON) {
         return null;
     }
 
@@ -62,11 +62,11 @@ function lineSegmentIntersectionParameter(
         return null;
     }
 
-    return Math.min(1, Math.max(0, lineParameter));
+    return Math.min(1, Math.max(0, edgeParameter));
 }
 
-function triangleDepthAtProjectedPoint(triangle: ProjectedTri, point: { x: number; y: number }, projectionType: ProjectionType): number | null {
-    const weights = barycentricCoordinates2D(point, triangle);
+function triangleDepthAtProjectedVertex(triangle: ProjectedTriangle, vertex: { x: number; y: number }, projectionType: ProjectionType): number | null {
+    const weights = barycentricCoordinates2D(vertex, triangle);
     if (weights === null) {
         return null;
     }
@@ -83,36 +83,36 @@ function triangleDepthAtProjectedPoint(triangle: ProjectedTri, point: { x: numbe
     return 1 / reciprocalDepth;
 }
 
-function linePlaneIntersectionParameter(line: ProjectedLine, triangle: ProjectedTri): number | null {
-    const point1 = line[0].cameraSpace;
-    const point2 = line[1].cameraSpace;
-    const triPoint1 = triangle[0].cameraSpace;
-    const triPoint2 = triangle[1].cameraSpace;
-    const triPoint3 = triangle[2].cameraSpace;
+function edgePlaneIntersectionParameter(edge: ProjectedEdge, triangle: ProjectedTriangle): number | null {
+    const vertex1 = edge[0].cameraSpace;
+    const vertex2 = edge[1].cameraSpace;
+    const triangleVertex1 = triangle[0].cameraSpace;
+    const triangleVertex2 = triangle[1].cameraSpace;
+    const triangleVertex3 = triangle[2].cameraSpace;
 
-    const normal = triangleNormal(triPoint1, triPoint2, triPoint3);
+    const normal = triangleNormal(triangleVertex1, triangleVertex2, triangleVertex3);
     const normalLengthSquared = dot3(normal, normal);
     if (normalLengthSquared < GEOMETRY_EPSILON * GEOMETRY_EPSILON) {
         return null;
     }
 
     const direction = {
-        x: point2.x - point1.x,
-        y: point2.y - point1.y,
-        z: point2.z - point1.z,
+        x: vertex2.x - vertex1.x,
+        y: vertex2.y - vertex1.y,
+        z: vertex2.z - vertex1.z,
     };
     const denominator = dot3(normal, direction);
-    const distanceFromLineStart = dot3(normal, {
-        x: triPoint1.x - point1.x,
-        y: triPoint1.y - point1.y,
-        z: triPoint1.z - point1.z,
+    const distanceFromEdgeStart = dot3(normal, {
+        x: triangleVertex1.x - vertex1.x,
+        y: triangleVertex1.y - vertex1.y,
+        z: triangleVertex1.z - vertex1.z,
     });
 
-    if (Math.abs(denominator) < GEOMETRY_EPSILON || Math.abs(distanceFromLineStart) < GEOMETRY_EPSILON) {
+    if (Math.abs(denominator) < GEOMETRY_EPSILON || Math.abs(distanceFromEdgeStart) < GEOMETRY_EPSILON) {
         return null;
     }
 
-    return distanceFromLineStart / denominator;
+    return distanceFromEdgeStart / denominator;
 }
 
 function mergeIntervals(intervals: Interval[]): Interval[] {
@@ -135,11 +135,11 @@ function mergeIntervals(intervals: Interval[]): Interval[] {
     return mergedIntervals;
 }
 
-export function projectPoint(camera: Camera, point: Point): ProjectedPoint {
-    const pointVector = new Vector([point.x, point.y, point.z, 1]);
-    const projectedVector = camera.projectionMatrix.multiplyVector(pointVector);
-    const depth = camera.getForwardDepth({ x: point.x, y: point.y, z: point.z });
-    const cameraSpace = camera.toCameraSpace({ x: point.x, y: point.y, z: point.z });
+export function projectVertex(camera: Camera, vertex: Vertex): ProjectedVertex {
+    const vertexVector = new Vector([vertex.x, vertex.y, vertex.z, 1]);
+    const projectedVector = camera.projectionMatrix.multiplyVector(vertexVector);
+    const depth = camera.getForwardDepth({ x: vertex.x, y: vertex.y, z: vertex.z });
+    const cameraSpace = camera.toCameraSpace({ x: vertex.x, y: vertex.y, z: vertex.z });
 
     const x_proj = projectedVector.at(0);
     const y_proj = projectedVector.at(1);
@@ -151,7 +151,7 @@ export function projectPoint(camera: Camera, point: Point): ProjectedPoint {
             depth,
             cameraSpace,
             withinRenderFrustrum: true,
-            colour: point.colour,
+            colour: vertex.colour,
         };
     }
 
@@ -162,7 +162,7 @@ export function projectPoint(camera: Camera, point: Point): ProjectedPoint {
             depth,
             cameraSpace,
             withinRenderFrustrum: false,
-            colour: point.colour,
+            colour: vertex.colour,
         };
     }
 
@@ -172,39 +172,39 @@ export function projectPoint(camera: Camera, point: Point): ProjectedPoint {
         depth,
         cameraSpace,
         withinRenderFrustrum: true,
-        colour: point.colour,
+        colour: vertex.colour,
     };
 }
 
-export function interpolateProjectedPoint(point1: ProjectedPoint, point2: ProjectedPoint, t: number): ProjectedPoint {
+export function interpolateProjectedVertex(vertex1: ProjectedVertex, vertex2: ProjectedVertex, t: number): ProjectedVertex {
     return {
-        x: lerp(point1.x, point2.x, t),
-        y: lerp(point1.y, point2.y, t),
-        depth: lerp(point1.depth, point2.depth, t),
+        x: lerp(vertex1.x, vertex2.x, t),
+        y: lerp(vertex1.y, vertex2.y, t),
+        depth: lerp(vertex1.depth, vertex2.depth, t),
         cameraSpace: {
-            x: lerp(point1.cameraSpace.x, point2.cameraSpace.x, t),
-            y: lerp(point1.cameraSpace.y, point2.cameraSpace.y, t),
-            z: lerp(point1.cameraSpace.z, point2.cameraSpace.z, t),
+            x: lerp(vertex1.cameraSpace.x, vertex2.cameraSpace.x, t),
+            y: lerp(vertex1.cameraSpace.y, vertex2.cameraSpace.y, t),
+            z: lerp(vertex1.cameraSpace.z, vertex2.cameraSpace.z, t),
         },
-        withinRenderFrustrum: point1.withinRenderFrustrum && point2.withinRenderFrustrum,
-        colour: point1.colour ?? point2.colour,
+        withinRenderFrustrum: vertex1.withinRenderFrustrum && vertex2.withinRenderFrustrum,
+        colour: vertex1.colour ?? vertex2.colour,
     };
 }
 
-function clipLineToTriangleProjection(line: ProjectedLine, triangle: ProjectedTri): Interval | null {
+function clipEdgeToTriangleProjection(edge: ProjectedEdge, triangle: ProjectedTriangle): Interval | null {
     const signedArea = triangleSignedArea2D(triangle);
     if (Math.abs(signedArea) < GEOMETRY_EPSILON) {
         return null;
     }
 
-    const lineStart = line[0];
-    const lineEnd = line[1];
+    const edgeStart = edge[0];
+    const edgeEnd = edge[1];
     const splitParameters: number[] = [0, 1];
 
     for (let index = 0; index < 3; index += 1) {
         const edgeStart = triangle[index]!;
         const edgeEnd = triangle[(index + 1) % 3]!;
-        const intersectionParameter = lineSegmentIntersectionParameter(lineStart, lineEnd, edgeStart, edgeEnd);
+        const intersectionParameter = edgeSegmentIntersectionParameter(edgeStart, edgeEnd, edgeStart, edgeEnd);
         if (intersectionParameter !== null && intersectionParameter > GEOMETRY_EPSILON && intersectionParameter < 1 - GEOMETRY_EPSILON) {
             splitParameters.push(intersectionParameter);
         }
@@ -234,13 +234,13 @@ function clipLineToTriangleProjection(line: ProjectedLine, triangle: ProjectedTr
             continue;
         }
 
-        const midpointParameter = (startParameter + endParameter) / 2;
-        const midpoint = {
-            x: lerp(lineStart.x, lineEnd.x, midpointParameter),
-            y: lerp(lineStart.y, lineEnd.y, midpointParameter),
+        const midvertexParameter = (startParameter + endParameter) / 2;
+        const midvertex = {
+            x: lerp(edgeStart.x, edgeEnd.x, midvertexParameter),
+            y: lerp(edgeStart.y, edgeEnd.y, midvertexParameter),
         };
 
-        if (!isStrictlyInsideTriangle(midpoint, triangle)) {
+        if (!isStrictlyInsideTriangle(midvertex, triangle)) {
             continue;
         }
 
@@ -256,16 +256,16 @@ function clipLineToTriangleProjection(line: ProjectedLine, triangle: ProjectedTr
     return { start: intervalStart, end: intervalEnd };
 }
 
-export function getHiddenIntervalsForLine(line: ProjectedLine, triangles: ProjectedTri[], projectionType: ProjectionType): Interval[] {
+export function getHiddenIntervalsForEdge(edge: ProjectedEdge, triangles: ProjectedTriangle[], projectionType: ProjectionType): Interval[] {
     const hiddenIntervals: Interval[] = [];
 
     for (const triangle of triangles) {
-        const projectedInterval = clipLineToTriangleProjection(line, triangle);
+        const projectedInterval = clipEdgeToTriangleProjection(edge, triangle);
         if (projectedInterval === null) {
             continue;
         }
 
-        const planeIntersectionParameter = linePlaneIntersectionParameter(line, triangle);
+        const planeIntersectionParameter = edgePlaneIntersectionParameter(edge, triangle);
         const splitParameters: number[] = [projectedInterval.start, projectedInterval.end];
 
         if (planeIntersectionParameter !== null && planeIntersectionParameter > projectedInterval.start + GEOMETRY_EPSILON && planeIntersectionParameter < projectedInterval.end - GEOMETRY_EPSILON) {
@@ -284,19 +284,19 @@ export function getHiddenIntervalsForLine(line: ProjectedLine, triangles: Projec
                 continue;
             }
 
-            const midpoint = (subIntervalStart + subIntervalEnd) / 2;
-            const lineDepth = lerp(line[0].depth, line[1].depth, midpoint);
-            const linePoint = {
-                x: lerp(line[0].x, line[1].x, midpoint),
-                y: lerp(line[0].y, line[1].y, midpoint),
+            const midvertex = (subIntervalStart + subIntervalEnd) / 2;
+            const edgeDepth = lerp(edge[0].depth, edge[1].depth, midvertex);
+            const edgeVertex = {
+                x: lerp(edge[0].x, edge[1].x, midvertex),
+                y: lerp(edge[0].y, edge[1].y, midvertex),
             };
-            const triangleDepth = triangleDepthAtProjectedPoint(triangle, linePoint, projectionType);
+            const triangleDepth = triangleDepthAtProjectedVertex(triangle, edgeVertex, projectionType);
 
             if (triangleDepth === null) {
                 continue;
             }
 
-            if (lineDepth > triangleDepth + DEPTH_EPSILON) {
+            if (edgeDepth > triangleDepth + DEPTH_EPSILON) {
                 hiddenIntervals.push({ start: subIntervalStart, end: subIntervalEnd });
             }
         }

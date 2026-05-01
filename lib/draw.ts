@@ -1,42 +1,42 @@
-import type { Tri, Line, Point } from "@lib/geometry";
+import type { Triangle, Edge, Vertex } from "@lib/geometry";
 import { Camera, ProjectionType } from "@lib/camera";
 import {
-    getHiddenIntervalsForLine,
-    interpolateProjectedPoint,
-    projectPoint,
-    type ProjectedLine,
-    type ProjectedPoint,
-    type ProjectedTri,
+    getHiddenIntervalsForEdge,
+    interpolateProjectedVertex,
+    projectVertex,
+    type ProjectedEdge,
+    type ProjectedVertex,
+    type ProjectedTriangle,
 } from "@lib/renderGeometry";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const PALETTE = {
-    point: "#ff0000",
-    line: "#0000ff",
-    tri: "#cccccc",
+    vertex: "#ff0000",
+    edge: "#0000ff",
+    triangle: "#cccccc",
     annotation: "#000000",
 };
 
 export type Annotation = {
     text: string;
-    position: Point;
+    position: Vertex;
     colour?: string;
 };
 
 export type DrawOptions = {
-    renderPoints?: boolean;
+    renderVertices?: boolean;
     renderAnnotations?: boolean;
-    triOpacity?: number;
+    triangleOpacity?: number;
     annotationsAlwaysOnTop?: boolean;
-    lineThickness?: number;
+    edgeThickness?: number;
 };
 
 type Drawable =
-    | { type: "point"; depth: number; colour: string | undefined; data: ProjectedPoint }
-    | { type: "line"; depth: number; colour: string | undefined; data: ProjectedLine; dashPattern?: DashPattern }
-    | { type: "tri"; depth: number; colour: string | undefined; data: ProjectedTri }
-    | { type: "annotation"; depth: number; data: { annotation: Annotation; projectedPosition: ProjectedPoint } };
+    | { type: "vertex"; depth: number; colour: string | undefined; data: ProjectedVertex }
+    | { type: "edge"; depth: number; colour: string | undefined; data: ProjectedEdge; dashPattern?: DashPattern }
+    | { type: "triangle"; depth: number; colour: string | undefined; data: ProjectedTriangle }
+    | { type: "annotation"; depth: number; data: { annotation: Annotation; projectedPosition: ProjectedVertex } };
 
 type DashPattern = {
     dashLength: number;
@@ -52,45 +52,45 @@ function createSvgElement(tagName: string): SVGElement {
 
 function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, options: DrawOptions): void {
     switch (drawable.type) {
-        case "point": {
-            const projectedPoint = drawable.data;
+        case "vertex": {
+            const projectedVertex = drawable.data;
             const circle = createSvgElement("circle");
-            circle.setAttribute("cx", projectedPoint.x.toString());
-            circle.setAttribute("cy", projectedPoint.y.toString());
+            circle.setAttribute("cx", projectedVertex.x.toString());
+            circle.setAttribute("cy", projectedVertex.y.toString());
             circle.setAttribute("r", "5");
-            circle.setAttribute("fill", projectedPoint.colour ?? PALETTE.point);
+            circle.setAttribute("fill", projectedVertex.colour ?? PALETTE.vertex);
             paper.appendChild(circle);
             break;
         }
-        case "line": {
-            const [projectedPoint1, projectedPoint2] = drawable.data;
-            const lineElement = createSvgElement("line");
-            lineElement.setAttribute("x1", projectedPoint1.x.toString());
-            lineElement.setAttribute("y1", projectedPoint1.y.toString());
-            lineElement.setAttribute("x2", projectedPoint2.x.toString());
-            lineElement.setAttribute("y2", projectedPoint2.y.toString());
-            lineElement.setAttribute("stroke", drawable.colour ?? PALETTE.line);
-            lineElement.setAttribute("stroke-width", (options.lineThickness ?? 2).toString());
+        case "edge": {
+            const [projectedVertex1, projectedVertex2] = drawable.data;
+            const edgeElement = createSvgElement("line");
+            edgeElement.setAttribute("x1", projectedVertex1.x.toString());
+            edgeElement.setAttribute("y1", projectedVertex1.y.toString());
+            edgeElement.setAttribute("x2", projectedVertex2.x.toString());
+            edgeElement.setAttribute("y2", projectedVertex2.y.toString());
+            edgeElement.setAttribute("stroke", drawable.colour ?? PALETTE.edge);
+            edgeElement.setAttribute("stroke-width", (options.edgeThickness ?? 2).toString());
             if (drawable.dashPattern !== undefined) {
-                lineElement.setAttribute("stroke-dasharray", `${drawable.dashPattern.dashLength} ${drawable.dashPattern.gapLength}`);
-                lineElement.setAttribute("stroke-dashoffset", drawable.dashPattern.dashOffset.toString());
+                edgeElement.setAttribute("stroke-dasharray", `${drawable.dashPattern.dashLength} ${drawable.dashPattern.gapLength}`);
+                edgeElement.setAttribute("stroke-dashoffset", drawable.dashPattern.dashOffset.toString());
             }
-            lineElement.setAttribute("stroke-linecap", "round");
-            lineElement.setAttribute("stroke-linejoin", "round");
-            lineElement.setAttribute("shape-rendering", "geometricPrecision");
-            paper.appendChild(lineElement);
+            edgeElement.setAttribute("stroke-edgecap", "round");
+            edgeElement.setAttribute("stroke-edgejoin", "round");
+            edgeElement.setAttribute("shape-rendering", "geometricPrecision");
+            paper.appendChild(edgeElement);
             break;
         }
-        case "tri": {
-            const [projectedPoint1, projectedPoint2, projectedPoint3] = drawable.data;
+        case "triangle": {
+            const [projectedVertex1, projectedVertex2, projectedVertex3] = drawable.data;
             const polygon = createSvgElement("polygon");
             polygon.setAttribute(
-                "points",
-                `${projectedPoint1.x},${projectedPoint1.y} ${projectedPoint2.x},${projectedPoint2.y} ${projectedPoint3.x},${projectedPoint3.y}`,
+                "vertices",
+                `${projectedVertex1.x},${projectedVertex1.y} ${projectedVertex2.x},${projectedVertex2.y} ${projectedVertex3.x},${projectedVertex3.y}`,
             );
-            polygon.setAttribute("fill", drawable.colour ?? PALETTE.tri);
-            polygon.setAttribute("fill-opacity", options.triOpacity?.toString() ?? "0.1");
-            polygon.setAttribute("stroke-linejoin", "round");
+            polygon.setAttribute("fill", drawable.colour ?? PALETTE.triangle);
+            polygon.setAttribute("fill-opacity", options.triangleOpacity?.toString() ?? "0.1");
+            polygon.setAttribute("stroke-edgejoin", "round");
             polygon.setAttribute("shape-rendering", "geometricPrecision");
             paper.appendChild(polygon);
             break;
@@ -101,7 +101,7 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
             textElement.setAttribute("x", projectedPosition.x.toString());
             textElement.setAttribute("y", projectedPosition.y.toString());
             textElement.setAttribute("fill", annotation.colour ?? PALETTE.annotation);
-            textElement.setAttribute("dominant-baseline", "middle");
+            textElement.setAttribute("dominant-baseedge", "middle");
             textElement.setAttribute("text-anchor", "middle");
             textElement.textContent = annotation.text;
             paper.appendChild(textElement);
@@ -110,16 +110,16 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
     }
 }
 
-function appendLineSegments(
+function appendEdgeSegments(
     drawables: Drawable[],
-    line: Line,
-    projectedPoint1: ProjectedPoint,
-    projectedPoint2: ProjectedPoint,
-    projectedTriangles: ProjectedTri[],
+    edge: Edge,
+    projectedVertex1: ProjectedVertex,
+    projectedVertex2: ProjectedVertex,
+    projectedTriangles: ProjectedTriangle[],
     projectionType: ProjectionType,
-    lineThickness: number,
+    edgeThickness: number,
 ): void {
-    const hiddenIntervals = getHiddenIntervalsForLine([projectedPoint1, projectedPoint2], projectedTriangles, projectionType);
+    const hiddenIntervals = getHiddenIntervalsForEdge([projectedVertex1, projectedVertex2], projectedTriangles, projectionType);
     let currentStart = 0;
 
     function pushSegment(startT: number, endT: number): void {
@@ -127,23 +127,23 @@ function appendLineSegments(
             return;
         }
 
-        const startPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, startT);
-        const endPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, endT);
+        const startVertex = interpolateProjectedVertex(projectedVertex1, projectedVertex2, startT);
+        const endVertex = interpolateProjectedVertex(projectedVertex1, projectedVertex2, endT);
         drawables.push({
-            type: "line",
-            colour: line.colour,
-            data: [startPoint, endPoint],
-            depth: (startPoint.depth + endPoint.depth) / 2,
+            type: "edge",
+            colour: edge.colour,
+            data: [startVertex, endVertex],
+            depth: (startVertex.depth + endVertex.depth) / 2,
         });
     }
 
-    function computeDashPattern(segmentStart: ProjectedPoint, segmentEnd: ProjectedPoint): DashPattern | undefined {
+    function computeDashPattern(segmentStart: ProjectedVertex, segmentEnd: ProjectedVertex): DashPattern | undefined {
         const segmentLength = Math.hypot(segmentEnd.x - segmentStart.x, segmentEnd.y - segmentStart.y);
         if (segmentLength <= 1e-7) {
             return undefined;
         }
 
-        const strokeWidth = Math.min(Math.max(lineThickness, 1), 4);
+        const strokeWidth = Math.min(Math.max(edgeThickness, 1), 4);
         const capMargin = strokeWidth / 2;
         const preferredDash = strokeWidth * 4;
         const preferredGap = strokeWidth * 3;
@@ -189,14 +189,14 @@ function appendLineSegments(
         return bestPattern;
     }
 
-    function getDashPhaseWindows(pointPosition: number, dashLength: number, patternLength: number, capMargin: number): Interval1D[] {
+    function getDashPhaseWindows(vertexPosition: number, dashLength: number, patternLength: number, capMargin: number): Interval1D[] {
         const safeStart = capMargin;
         const safeEnd = Math.max(capMargin, dashLength - capMargin);
         if (safeEnd <= safeStart + 1e-7) {
             return [];
         }
 
-        const phase = ((pointPosition % patternLength) + patternLength) % patternLength;
+        const phase = ((vertexPosition % patternLength) + patternLength) % patternLength;
         const start = (phase - safeEnd + patternLength) % patternLength;
         const end = (phase - safeStart + patternLength) % patternLength;
 
@@ -231,9 +231,9 @@ function appendLineSegments(
         pushSegment(currentStart, interval.start);
         const startT = interval.start;
         const endT = interval.end;
-        const startPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, startT);
-        const endPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, endT);
-        const dashPattern = computeDashPattern(startPoint, endPoint);
+        const startVertex = interpolateProjectedVertex(projectedVertex1, projectedVertex2, startT);
+        const endVertex = interpolateProjectedVertex(projectedVertex1, projectedVertex2, endT);
+        const dashPattern = computeDashPattern(startVertex, endVertex);
 
         if (dashPattern === undefined) {
             // no dash pattern found -> render solid hidden interval
@@ -242,11 +242,11 @@ function appendLineSegments(
             continue;
         }
 
-        const segmentLength = Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+        const segmentLength = Math.hypot(endVertex.x - startVertex.x, endVertex.y - startVertex.y);
         const dashLen = dashPattern.dashLength;
 
         // If the interval is too short to contain a full leading+trailing dash,
-        // just render it solid to guarantee endpoints are fully drawn.
+        // just render it solid to guarantee endvertices are fully drawn.
         if (segmentLength <= dashLen * 1.05) {
             pushSegment(startT, endT);
             currentStart = interval.end;
@@ -264,18 +264,18 @@ function appendLineSegments(
         // Middle: dashed body. Recompute a dash pattern for the middle piece so
         // the dash/gap sizing is appropriate for its length (fallback to the
         // original pattern if recompute fails).
-        const middleStartPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, midStartT);
-        const middleEndPoint = interpolateProjectedPoint(projectedPoint1, projectedPoint2, midEndT);
-        let middlePattern = computeDashPattern(middleStartPoint, middleEndPoint);
+        const middleStartVertex = interpolateProjectedVertex(projectedVertex1, projectedVertex2, midStartT);
+        const middleEndVertex = interpolateProjectedVertex(projectedVertex1, projectedVertex2, midEndT);
+        let middlePattern = computeDashPattern(middleStartVertex, middleEndVertex);
         if (middlePattern === undefined) {
             middlePattern = dashPattern;
         }
 
         const middleDrawable: Drawable = {
-            type: "line",
-            colour: line.colour,
-            data: [middleStartPoint, middleEndPoint],
-            depth: (middleStartPoint.depth + middleEndPoint.depth) / 2,
+            type: "edge",
+            colour: edge.colour,
+            data: [middleStartVertex, middleEndVertex],
+            depth: (middleStartVertex.depth + middleEndVertex.depth) / 2,
             dashPattern: middlePattern,
         };
         drawables.push(middleDrawable);
@@ -292,95 +292,95 @@ function appendLineSegments(
 export function drawScene(
     paper: HTMLElement & SVGElement,
     camera: Camera,
-    points: Point[],
-    lines: Line[],
-    tris: Tri[],
+    vertices: Vertex[],
+    edges: Edge[],
+    triangles: Triangle[],
     annotations: Annotation[],
     options: DrawOptions = {
-        renderPoints: true,
+        renderVertices: true,
         renderAnnotations: true,
-        triOpacity: 0.1,
+        triangleOpacity: 0.1,
         annotationsAlwaysOnTop: true,
-        lineThickness: 2,
+        edgeThickness: 2,
     },
 ): void {
-    const projectCache = new Map<Point, ProjectedPoint>();
+    const projectCache = new Map<Vertex, ProjectedVertex>();
 
-    function project(point: Point): ProjectedPoint {
-        const cachedProjection = projectCache.get(point);
+    function project(vertex: Vertex): ProjectedVertex {
+        const cachedProjection = projectCache.get(vertex);
         if (cachedProjection !== undefined) {
             return cachedProjection;
         }
 
-        const projectedPoint = projectPoint(camera, point);
-        projectCache.set(point, projectedPoint);
-        return projectedPoint;
+        const projectedVertex = projectVertex(camera, vertex);
+        projectCache.set(vertex, projectedVertex);
+        return projectedVertex;
     }
 
     const drawables: Drawable[] = [];
-    const projectedTriangles: ProjectedTri[] = [];
+    const projectedTriangles: ProjectedTriangle[] = [];
 
-    for (const tri of tris) {
-        const [point1, point2, point3] = tri.points;
-        const projectedPoint1 = project(point1);
-        const projectedPoint2 = project(point2);
-        const projectedPoint3 = project(point3);
+    for (const triangle of triangles) {
+        const [vertex1, vertex2, vertex3] = triangle.vertices;
+        const projectedVertex1 = project(vertex1);
+        const projectedVertex2 = project(vertex2);
+        const projectedVertex3 = project(vertex3);
 
-        if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.withinRenderFrustrum || !projectedPoint2.withinRenderFrustrum || !projectedPoint3.withinRenderFrustrum)) {
+        if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedVertex1.withinRenderFrustrum || !projectedVertex2.withinRenderFrustrum || !projectedVertex3.withinRenderFrustrum)) {
             continue;
         }
 
-        const triDrawable: Drawable = {
-            type: "tri",
-            colour: tri.colour,
-            data: [projectedPoint1, projectedPoint2, projectedPoint3],
-            depth: (projectedPoint1.depth + projectedPoint2.depth + projectedPoint3.depth) / 3,
+        const triangleDrawable: Drawable = {
+            type: "triangle",
+            colour: triangle.colour,
+            data: [projectedVertex1, projectedVertex2, projectedVertex3],
+            depth: (projectedVertex1.depth + projectedVertex2.depth + projectedVertex3.depth) / 3,
         };
-        projectedTriangles.push(triDrawable.data as ProjectedTri);
-        drawables.push(triDrawable);
+        projectedTriangles.push(triangleDrawable.data as ProjectedTriangle);
+        drawables.push(triangleDrawable);
     }
 
-    for (const line of lines) {
-        const [point1, point2] = line.points;
-        const projectedPoint1 = project(point1);
-        const projectedPoint2 = project(point2);
+    for (const edge of edges) {
+        const [vertex1, vertex2] = edge.vertices;
+        const projectedVertex1 = project(vertex1);
+        const projectedVertex2 = project(vertex2);
 
-        if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedPoint1.withinRenderFrustrum || !projectedPoint2.withinRenderFrustrum)) {
+        if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedVertex1.withinRenderFrustrum || !projectedVertex2.withinRenderFrustrum)) {
             continue;
         }
 
-        appendLineSegments(drawables, line, projectedPoint1, projectedPoint2, projectedTriangles, camera.projectionType, options.lineThickness ?? 2);
+        appendEdgeSegments(drawables, edge, projectedVertex1, projectedVertex2, projectedTriangles, camera.projectionType, options.edgeThickness ?? 2);
     }
 
-    if (options.renderPoints) {
-        for (const point of points) {
-            const projectedPoint = project(point);
-            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.withinRenderFrustrum) {
+    if (options.renderVertices) {
+        for (const vertex of vertices) {
+            const projectedVertex = project(vertex);
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedVertex.withinRenderFrustrum) {
                 continue;
             }
 
             drawables.push({
-                type: "point",
-                depth: projectedPoint.depth,
-                colour: projectedPoint.colour,
-                data: projectedPoint,
+                type: "vertex",
+                depth: projectedVertex.depth,
+                colour: projectedVertex.colour,
+                data: projectedVertex,
             });
         }
     }
 
     if (options.renderAnnotations) {
         for (const annotation of annotations) {
-            const projectedPoint = project(annotation.position);
-            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedPoint.withinRenderFrustrum) {
+            const projectedVertex = project(annotation.position);
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedVertex.withinRenderFrustrum) {
                 continue;
             }
 
             drawables.push({
                 type: "annotation",
-                depth: options.annotationsAlwaysOnTop ? -Infinity : projectedPoint.depth,
+                depth: options.annotationsAlwaysOnTop ? -Infinity : projectedVertex.depth,
                 data: {
                     annotation,
-                    projectedPosition: projectedPoint,
+                    projectedPosition: projectedVertex,
                 },
             });
         }

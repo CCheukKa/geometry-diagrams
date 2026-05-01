@@ -12,7 +12,7 @@ export class Camera {
     private _lookAtTarget: Vector3D;
     private _upHint: Vector3D;
     private _focalLengths: Vector2D;
-    private _principalPoint: Vector2D;
+    private _principalVertex: Vector2D;
     private _skewCoefficient: number;
 
     private _intrinsicMatrix: Matrix3x3 = null as any;
@@ -24,14 +24,14 @@ export class Camera {
         position: Vector3D,
         lookAtTarget: Vector3D,
         focalLengths: Vector2D,
-        principalPoint: Vector2D = { x: 0, y: 0 },
+        principalVertex: Vector2D = { x: 0, y: 0 },
         skewCoefficient: number = 0,
     ) {
         this._position = position;
         this._lookAtTarget = lookAtTarget;
         this._upHint = { x: 0, y: 0, z: 1 };
         this._focalLengths = focalLengths;
-        this._principalPoint = principalPoint;
+        this._principalVertex = principalVertex;
         this._projectionType = projectionType;
         this._skewCoefficient = skewCoefficient;
 
@@ -40,6 +40,11 @@ export class Camera {
 
     set position(position: Vector3D) {
         this._position = position;
+        this.updateCameraMatrices();
+    }
+
+    set lookAtTarget(lookAtTarget: Vector3D) {
+        this._lookAtTarget = lookAtTarget;
         this.updateCameraMatrices();
     }
 
@@ -57,22 +62,22 @@ export class Camera {
         this.updateCameraMatrices();
     }
 
-    public getForwardDepth(point: Vector3D): number {
+    public getForwardDepth(vertex: Vector3D): number {
         const forward = toVector3D(toVector(this._lookAtTarget).subtract(toVector(this._position)).normalize());
         const delta = {
-            x: point.x - this._position.x,
-            y: point.y - this._position.y,
-            z: point.z - this._position.z,
+            x: vertex.x - this._position.x,
+            y: vertex.y - this._position.y,
+            z: vertex.z - this._position.z,
         };
         return forward.x * delta.x + forward.y * delta.y + forward.z * delta.z;
     }
 
-    public toCameraSpace(point: Vector3D): Vector3D {
+    public toCameraSpace(vertex: Vector3D): Vector3D {
         const { right, up, negForward } = this.computeCameraFrame();
         const delta = {
-            x: point.x - this._position.x,
-            y: point.y - this._position.y,
-            z: point.z - this._position.z,
+            x: vertex.x - this._position.x,
+            y: vertex.y - this._position.y,
+            z: vertex.z - this._position.z,
         };
 
         return {
@@ -110,8 +115,8 @@ export class Camera {
     private computeCameraIntrinsicMatrix(): Matrix3x3 {
         const focalLengthScalar = this._projectionType === ProjectionType.ORTHOGRAPHIC ? 1 : 800;
         return [
-            [this._focalLengths.x * focalLengthScalar, this._skewCoefficient, this._principalPoint.x],
-            [0, this._focalLengths.y * focalLengthScalar, this._principalPoint.y],
+            [this._focalLengths.x * focalLengthScalar, this._skewCoefficient, this._principalVertex.x],
+            [0, this._focalLengths.y * focalLengthScalar, this._principalVertex.y],
             [0, 0, 1],
         ];
     }

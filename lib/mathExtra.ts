@@ -21,44 +21,44 @@ export function lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
 }
 
-export function subtract2D(point1: Vector2D, point2: Vector2D): Vector2D {
-    return { x: point1.x - point2.x, y: point1.y - point2.y };
+export function subtract2D(vertex1: Vector2D, vertex2: Vector2D): Vector2D {
+    return { x: vertex1.x - vertex2.x, y: vertex1.y - vertex2.y };
 }
 
-export function cross2D(point1: Vector2D, point2: Vector2D): number {
-    return point1.x * point2.y - point1.y * point2.x;
+export function cross2D(vertex1: Vector2D, vertex2: Vector2D): number {
+    return vertex1.x * vertex2.y - vertex1.y * vertex2.x;
 }
 
-export function orient2D(point1: Vector2D, point2: Vector2D, point3: Vector2D): number {
-    return cross2D(subtract2D(point2, point1), subtract2D(point3, point1));
+export function orient2D(vertex1: Vector2D, vertex2: Vector2D, vertex3: Vector2D): number {
+    return cross2D(subtract2D(vertex2, vertex1), subtract2D(vertex3, vertex1));
 }
 
-export function barycentricCoordinates2D(point: Vector2D, triangle: [Vector2D, Vector2D, Vector2D]): [number, number, number] | null {
+export function barycentricCoordinates2D(vertex: Vector2D, triangle: [Vector2D, Vector2D, Vector2D]): [number, number, number] | null {
     const denominator = orient2D(triangle[0], triangle[1], triangle[2]);
     if (Math.abs(denominator) < 1e-7) {
         return null;
     }
 
-    const weight1 = orient2D(point, triangle[1], triangle[2]) / denominator;
-    const weight2 = orient2D(point, triangle[2], triangle[0]) / denominator;
+    const weight1 = orient2D(vertex, triangle[1], triangle[2]) / denominator;
+    const weight2 = orient2D(vertex, triangle[2], triangle[0]) / denominator;
     const weight3 = 1 - weight1 - weight2;
     return [weight1, weight2, weight3];
 }
 
-export function dot3(point1: Vector3D, point2: Vector3D): number {
-    return point1.x * point2.x + point1.y * point2.y + point1.z * point2.z;
+export function dot3(vertex1: Vector3D, vertex2: Vector3D): number {
+    return vertex1.x * vertex2.x + vertex1.y * vertex2.y + vertex1.z * vertex2.z;
 }
 
-export function triangleNormal(point1: Vector3D, point2: Vector3D, point3: Vector3D): Vector3D {
+export function triangleNormal(vertex1: Vector3D, vertex2: Vector3D, vertex3: Vector3D): Vector3D {
     const edge1 = {
-        x: point2.x - point1.x,
-        y: point2.y - point1.y,
-        z: point2.z - point1.z,
+        x: vertex2.x - vertex1.x,
+        y: vertex2.y - vertex1.y,
+        z: vertex2.z - vertex1.z,
     };
     const edge2 = {
-        x: point3.x - point1.x,
-        y: point3.y - point1.y,
-        z: point3.z - point1.z,
+        x: vertex3.x - vertex1.x,
+        y: vertex3.y - vertex1.y,
+        z: vertex3.z - vertex1.z,
     };
 
     return {

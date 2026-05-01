@@ -1,4 +1,4 @@
-export class Point {
+export class Vertex {
     public x: number;
     public y: number;
     public z: number;
@@ -12,22 +12,22 @@ export class Point {
     }
 }
 
-export class Line {
-    public points: [Point, Point];
+export class Edge {
+    public vertices: [Vertex, Vertex];
     public colour?: string | undefined;
 
-    constructor(point1: Point, point2: Point, colour?: string) {
-        this.points = [point1, point2];
+    constructor(vertex1: Vertex, vertex2: Vertex, colour?: string) {
+        this.vertices = [vertex1, vertex2];
         this.colour = colour;
     }
 }
 
-export class Tri {
-    public points: [Point, Point, Point];
+export class Triangle {
+    public vertices: [Vertex, Vertex, Vertex];
     public colour?: string | undefined;
 
-    constructor(point1: Point, point2: Point, point3: Point, colour?: string) {
-        this.points = [point1, point2, point3];
+    constructor(vertex1: Vertex, vertex2: Vertex, vertex3: Vertex, colour?: string) {
+        this.vertices = [vertex1, vertex2, vertex3];
         this.colour = colour;
     }
 }

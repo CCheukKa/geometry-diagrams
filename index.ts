@@ -1,6 +1,6 @@
 import { drawScene } from "@lib/draw";
 import { Camera, ProjectionType } from "@lib/camera";
-import { Tri, Line, Point } from "@lib/geometry";
+import { Triangle, Edge, Vertex } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { Quat } from "ts-matrix";
 
@@ -17,18 +17,18 @@ const cameraYawInput = document.getElementById("cameraOrbitYaw") as HTMLInputEle
 const orthographicCheckbox = document.getElementById("orthographic") as HTMLInputElement;
 const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HTMLInputElement;
 const showAnnotationsOnTopCheckbox = document.getElementById("showAnnotationsOnTop") as HTMLInputElement;
-const showPointsCheckbox = document.getElementById("showPoints") as HTMLInputElement;
-const triOpacityInput = document.getElementById("triOpacity") as HTMLInputElement;
-const lineThicknessInput = document.getElementById("lineThickness") as HTMLInputElement;
+const showVerticesCheckbox = document.getElementById("showVertices") as HTMLInputElement;
+const triangleOpacityInput = document.getElementById("triangleOpacity") as HTMLInputElement;
+const edgeThicknessInput = document.getElementById("edgeThickness") as HTMLInputElement;
 
 cameraRadiusInput.oninput = updateCameraPosition;
 cameraPitchInput.oninput = updateCameraPosition;
 cameraYawInput.oninput = updateCameraPosition;
 showAnnotationsCheckbox.onchange = renderScene;
 showAnnotationsOnTopCheckbox.onchange = renderScene;
-showPointsCheckbox.onchange = renderScene;
-triOpacityInput.oninput = renderScene;
-lineThicknessInput.oninput = renderScene;
+showVerticesCheckbox.onchange = renderScene;
+triangleOpacityInput.oninput = renderScene;
+edgeThicknessInput.oninput = renderScene;
 orthographicCheckbox.onchange = () => {
     camera.projectionType = orthographicCheckbox.checked ? ProjectionType.ORTHOGRAPHIC : ProjectionType.PERSPECTIVE;
     renderScene();
@@ -36,67 +36,67 @@ orthographicCheckbox.onchange = () => {
 
 /* -------------------------------------------------------------------------- */
 
-const origin = new Point(0, 0, 0, "white");
-const xAxisStub = new Line(origin, new Point(100, 0, 0), "red");
-const yAxisStub = new Line(origin, new Point(0, 100, 0), "green");
-const zAxisStub = new Line(origin, new Point(0, 0, 100), "blue");
+const origin = new Vertex(0, 0, 0, "white");
+const xAxisStub = new Edge(origin, new Vertex(100, 0, 0), "red");
+const yAxisStub = new Edge(origin, new Vertex(0, 100, 0), "green");
+const zAxisStub = new Edge(origin, new Vertex(0, 0, 100), "blue");
 
 // cube centered at (0, 0, 0)
-const p1 = new Point(-50, -50, -50);
-const p2 = new Point(50, -50, -50);
-const p3 = new Point(50, 50, -50);
-const p4 = new Point(-50, 50, -50);
-const p5 = new Point(-50, -50, 50);
-const p6 = new Point(50, -50, 50);
-const p7 = new Point(50, 50, 50);
-const p8 = new Point(-50, 50, 50);
-const points = [origin, p1, p2, p3, p4, p5, p6, p7, p8];
+const p1 = new Vertex(-50, -50, -50);
+const p2 = new Vertex(50, -50, -50);
+const p3 = new Vertex(50, 50, -50);
+const p4 = new Vertex(-50, 50, -50);
+const p5 = new Vertex(-50, -50, 50);
+const p6 = new Vertex(50, -50, 50);
+const p7 = new Vertex(50, 50, 50);
+const p8 = new Vertex(-50, 50, 50);
+const vertices = [origin, p1, p2, p3, p4, p5, p6, p7, p8];
 // top edges in yellow, bottom edges in cyan, vertical edges in magenta
-const lines = [
+const edges = [
     xAxisStub,
     yAxisStub,
     zAxisStub,
-    new Line(p1, p2, "cyan"),
-    new Line(p2, p3, "cyan"),
-    new Line(p3, p4, "cyan"),
-    new Line(p4, p1, "cyan"),
-    new Line(p5, p6, "yellow"),
-    new Line(p6, p7, "yellow"),
-    new Line(p7, p8, "yellow"),
-    new Line(p8, p5, "yellow"),
-    new Line(p1, p5, "magenta"),
-    new Line(p2, p6, "magenta"),
-    new Line(p3, p7, "magenta"),
-    new Line(p4, p8, "magenta"),
+    new Edge(p1, p2, "cyan"),
+    new Edge(p2, p3, "cyan"),
+    new Edge(p3, p4, "cyan"),
+    new Edge(p4, p1, "cyan"),
+    new Edge(p5, p6, "yellow"),
+    new Edge(p6, p7, "yellow"),
+    new Edge(p7, p8, "yellow"),
+    new Edge(p8, p5, "yellow"),
+    new Edge(p1, p5, "magenta"),
+    new Edge(p2, p6, "magenta"),
+    new Edge(p3, p7, "magenta"),
+    new Edge(p4, p8, "magenta"),
 ];
-const tris = [
-    new Tri(p1, p2, p3, "cyan"),
-    new Tri(p1, p3, p4, "cyan"),
-    new Tri(p5, p6, p7, "yellow"),
-    new Tri(p5, p7, p8, "yellow"),
-    new Tri(p1, p2, p6, "magenta"),
-    new Tri(p1, p6, p5, "magenta"),
-    new Tri(p4, p3, p7, "magenta"),
-    new Tri(p4, p7, p8, "magenta"),
-    new Tri(p1, p4, p8, "magenta"),
-    new Tri(p1, p8, p5, "magenta"),
-    new Tri(p2, p3, p7, "magenta"),
-    new Tri(p2, p7, p6, "magenta"),
+const triangles = [
+    new Triangle(p1, p2, p3, "cyan"),
+    new Triangle(p1, p3, p4, "cyan"),
+    new Triangle(p5, p6, p7, "yellow"),
+    new Triangle(p5, p7, p8, "yellow"),
+    new Triangle(p1, p2, p6, "magenta"),
+    new Triangle(p1, p6, p5, "magenta"),
+    new Triangle(p4, p3, p7, "magenta"),
+    new Triangle(p4, p7, p8, "magenta"),
+    new Triangle(p1, p4, p8, "magenta"),
+    new Triangle(p1, p8, p5, "magenta"),
+    new Triangle(p2, p3, p7, "magenta"),
+    new Triangle(p2, p7, p6, "magenta"),
 ];
 
 const annotations = [
-    { text: "X", position: xAxisStub.points[1], colour: "red" },
-    { text: "Y", position: yAxisStub.points[1], colour: "green" },
-    { text: "Z", position: zAxisStub.points[1], colour: "blue" },
+    { text: "X", position: xAxisStub.vertices[1], colour: "red" },
+    { text: "Y", position: yAxisStub.vertices[1], colour: "green" },
+    { text: "Z", position: zAxisStub.vertices[1], colour: "blue" },
 ];
 
 const camera = new Camera(
     ProjectionType.PERSPECTIVE,
     { x: 500, y: 500, z: 500 },
     {
-        x: (Math.min(...points.map(p => p.x)) + Math.max(...points.map(p => p.x))) / 2,
-        y: (Math.min(...points.map(p => p.y)) + Math.max(...points.map(p => p.y))) / 2,
-        z: (Math.min(...points.map(p => p.z)) + Math.max(...points.map(p => p.z))) / 2,
+        x: (Math.min(...vertices.map(p => p.x)) + Math.max(...vertices.map(p => p.x))) / 2,
+        y: (Math.min(...vertices.map(p => p.y)) + Math.max(...vertices.map(p => p.y))) / 2,
+        z: (Math.min(...vertices.map(p => p.z)) + Math.max(...vertices.map(p => p.z))) / 2,
     },
     { x: 1, y: 1 },
 );
@@ -129,15 +129,15 @@ function renderScene() {
     drawScene(
         paperElement,
         camera,
-        points,
-        lines,
-        tris,
+        vertices,
+        edges,
+        triangles,
         annotations,
         {
             renderAnnotations: showAnnotationsCheckbox.checked,
-            renderPoints: showPointsCheckbox.checked,
-            lineThickness: parseFloat(lineThicknessInput.value),
-            triOpacity: parseFloat(triOpacityInput.value),
+            renderVertices: showVerticesCheckbox.checked,
+            edgeThickness: parseFloat(edgeThicknessInput.value),
+            triangleOpacity: parseFloat(triangleOpacityInput.value),
             annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
         },
     );
