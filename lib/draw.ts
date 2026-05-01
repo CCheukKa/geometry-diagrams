@@ -75,8 +75,8 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
                 edgeElement.setAttribute("stroke-dasharray", `${drawable.dashPattern.dashLength} ${drawable.dashPattern.gapLength}`);
                 edgeElement.setAttribute("stroke-dashoffset", drawable.dashPattern.dashOffset.toString());
             }
-            edgeElement.setAttribute("stroke-edgecap", "round");
-            edgeElement.setAttribute("stroke-edgejoin", "round");
+            edgeElement.setAttribute("stroke-linecap", "round");
+            edgeElement.setAttribute("stroke-linejoin", "round");
             edgeElement.setAttribute("shape-rendering", "geometricPrecision");
             paper.appendChild(edgeElement);
             break;
@@ -85,12 +85,12 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
             const [projectedVertex1, projectedVertex2, projectedVertex3] = drawable.data;
             const polygon = createSvgElement("polygon");
             polygon.setAttribute(
-                "vertices",
+                "points",
                 `${projectedVertex1.x},${projectedVertex1.y} ${projectedVertex2.x},${projectedVertex2.y} ${projectedVertex3.x},${projectedVertex3.y}`,
             );
             polygon.setAttribute("fill", drawable.colour ?? PALETTE.triangle);
             polygon.setAttribute("fill-opacity", options.triangleOpacity?.toString() ?? "0.1");
-            polygon.setAttribute("stroke-edgejoin", "round");
+            polygon.setAttribute("stroke-linejoin", "round");
             polygon.setAttribute("shape-rendering", "geometricPrecision");
             paper.appendChild(polygon);
             break;
@@ -101,7 +101,7 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
             textElement.setAttribute("x", projectedPosition.x.toString());
             textElement.setAttribute("y", projectedPosition.y.toString());
             textElement.setAttribute("fill", annotation.colour ?? PALETTE.annotation);
-            textElement.setAttribute("dominant-baseedge", "middle");
+            textElement.setAttribute("dominant-baseline", "middle");
             textElement.setAttribute("text-anchor", "middle");
             textElement.textContent = annotation.text;
             paper.appendChild(textElement);
