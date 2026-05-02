@@ -202,9 +202,9 @@ function clipEdgeToTriangleProjection(edge: ProjectedEdge, triangle: ProjectedTr
     const splitParameters: number[] = [0, 1];
 
     for (let index = 0; index < 3; index += 1) {
-        const edgeStart = triangle[index]!;
-        const edgeEnd = triangle[(index + 1) % 3]!;
-        const intersectionParameter = edgeSegmentIntersectionParameter(edgeStart, edgeEnd, edgeStart, edgeEnd);
+        const segmentStart = triangle[index]!;
+        const segmentEnd = triangle[(index + 1) % 3]!;
+        const intersectionParameter = edgeSegmentIntersectionParameter(edgeStart, edgeEnd, segmentStart, segmentEnd);
         if (intersectionParameter !== null && intersectionParameter > GEOMETRY_EPSILON && intersectionParameter < 1 - GEOMETRY_EPSILON) {
             splitParameters.push(intersectionParameter);
         }
