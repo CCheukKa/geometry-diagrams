@@ -13,16 +13,16 @@ body {
     box-sizing: border-box;
     overflow: hidden;
     position: relative;
-}
 
-body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 42%),
-        linear-gradient(180deg, #222, #181818 65%, #111);
-    pointer-events: none;
+    &::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+            radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 42%),
+            linear-gradient(180deg, #222, #181818 65%, #111);
+        pointer-events: none;
+    }
 }
 
 .app-shell {
@@ -74,30 +74,30 @@ svg {
     background: #262626;
     overflow: clip;
     margin-bottom: 14px;
-}
 
-.panel summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 12px 14px;
-    font-weight: 700;
-    user-select: none;
-}
+    summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 12px 14px;
+        font-weight: 700;
+        user-select: none;
 
-.panel summary::-webkit-details-marker {
-    display: none;
-}
+        &::-webkit-details-marker {
+            display: none;
+        }
 
-.panel summary::after {
-    content: "◀";
-    float: right;
-    transform: rotate(-90deg);
-    transition: transform 120ms ease;
-    color: #bdbdbd;
-}
+        &::after {
+            content: "◀";
+            float: right;
+            transform: rotate(-90deg);
+            transition: transform 120ms ease;
+            color: #bdbdbd;
+        }
+    }
 
-.panel:not([open]) summary::after {
-    transform: rotate(0deg);
+    &:not([open]) summary::after {
+        transform: rotate(0deg);
+    }
 }
 
 .panel-body {
@@ -110,12 +110,28 @@ svg {
     border-radius: 10px;
     background: #1f1f1f;
     margin-bottom: 12px;
-}
 
-.editor-card h3 {
-    margin: 0 0 10px;
-    font-size: 0.95rem;
-    color: #d0d0d0;
+    h3 {
+        margin: 0 0 10px;
+        font-size: 0.95rem;
+        color: #d0d0d0;
+    }
+
+    button {
+        background: #404040;
+        border: 1px solid #5a5a5a;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        margin-top: 4px;
+
+        &:hover {
+            background: #505050;
+            border-color: #7a7a7a;
+        }
+    }
 }
 
 .control-row {
@@ -125,61 +141,36 @@ svg {
     margin-bottom: 10px;
 }
 
-.control-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
-}
-
 .editor-grid {
     display: grid;
     gap: 8px;
     margin-bottom: 10px;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-}
 
-.editor-grid label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-}
+    label {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
 
-.editor-grid input[type="text"],
-.editor-grid input[type="number"],
-.editor-grid select {
-    width: 100%;
-    background: #1a1a1a;
-    border: 1px solid #4a4a4a;
-    color: white;
-    padding: 6px;
-    border-radius: 4px;
-    font-family: inherit;
-}
+    input[type="text"],
+    input[type="number"],
+    select {
+        width: 100%;
+        background: #1a1a1a;
+        border: 1px solid #4a4a4a;
+        color: white;
+        padding: 6px;
+        border-radius: 4px;
+        font-family: inherit;
 
-.editor-grid input[type="text"]:focus,
-.editor-grid input[type="number"]:focus,
-.editor-grid select:focus {
-    outline: none;
-    border-color: #7a7a7a;
-    background: #252525;
-}
-
-.editor-card button {
-    background: #404040;
-    border: 1px solid #5a5a5a;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: inherit;
-    margin-top: 4px;
-}
-
-.editor-card button:hover {
-    background: #505050;
-    border-color: #7a7a7a;
+        &:focus {
+            outline: none;
+            border-color: #7a7a7a;
+            background: #252525;
+        }
+    }
 }
 
 .control-action {
@@ -193,11 +184,11 @@ svg {
     font-family: inherit;
     font-weight: 700;
     margin-top: 6px;
-}
 
-.control-action:hover {
-    background: #3a5f7d;
-    border-color: #6d8cab;
+    &:hover {
+        background: #3a5f7d;
+        border-color: #6d8cab;
+    }
 }
 
 .export-row {
@@ -205,11 +196,11 @@ svg {
     align-items: center;
     gap: 10px;
     margin-top: 6px;
-}
 
-.export-row .control-action {
-    flex: 1 1 auto;
-    margin-top: 0;
+    .control-action {
+        flex: 1 1 auto;
+        margin-top: 0;
+    }
 }
 
 .export-scale {
@@ -227,53 +218,53 @@ svg {
     font-weight: 600;
     line-height: 1;
     letter-spacing: 0.02em;
-}
 
-.export-scale input[type="number"] {
-    width: 3ch;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    font-weight: 600;
-    text-align: right;
-    padding: 0;
-    margin: 0;
-    -webkit-appearance: textfield;
-    -moz-appearance: textfield;
-    appearance: textfield;
-}
+    input[type="number"] {
+        width: 3ch;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 600;
+        text-align: right;
+        padding: 0;
+        margin: 0;
+        -webkit-appearance: textfield;
+        -moz-appearance: textfield;
+        appearance: textfield;
 
-.export-scale input[type="number"]::-webkit-outer-spin-button,
-.export-scale input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
 
-.export-scale input[type="number"]:focus {
-    outline: none;
-}
+        &:focus {
+            outline: none;
+        }
+    }
 
-.export-scale span {
-    opacity: 0.85;
+    span {
+        opacity: 0.85;
+    }
 }
 
 .scene-list-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 10px;
+
+    h4 {
+        margin: 0 0 8px;
+        font-size: 0.84rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #a6a6a6;
+    }
 }
 
 .scene-list-wide {
     grid-column: 1 / -1;
-}
-
-.scene-list-grid h4 {
-    margin: 0 0 8px;
-    font-size: 0.84rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #a6a6a6;
 }
 
 #pointsList,
@@ -287,18 +278,14 @@ svg {
     font-size: 0.9rem;
     max-height: 160px;
     overflow-y: auto;
-}
 
-#pointsList li,
-#linesList li,
-#planesList li,
-#polygonsList li,
-#constraintsList li {
-    padding: 6px;
-    margin-bottom: 4px;
-    background: #1a1a1a;
-    border-left: 3px solid #5a5a5a;
-    border-radius: 2px;
+    li {
+        padding: 6px;
+        margin-bottom: 4px;
+        background: #1a1a1a;
+        border-left: 3px solid #5a5a5a;
+        border-radius: 2px;
+    }
 }
 
 .editor-status {
@@ -306,10 +293,10 @@ svg {
     margin: 10px 0 0;
     color: #d0d0d0;
     font-size: 0.9rem;
-}
 
-.editor-status.error {
-    color: #ff8a8a;
+    &.error {
+        color: #ff8a8a;
+    }
 }
 
 .solve-button {
@@ -324,11 +311,11 @@ svg {
     font-size: 1rem;
     font-weight: 500;
     margin-top: 16px;
-}
 
-.solve-button:hover {
-    background: #3a6a3a;
-    border-color: #7a9a7a;
+    &:hover {
+        background: #3a6a3a;
+        border-color: #7a9a7a;
+    }
 }
 
 @media (max-width: 720px) {
