@@ -33,6 +33,14 @@
                             <span>Always Show Annotations On Top</span>
                             <input type="checkbox" id="showAnnotationsOnTop" checked />
                         </label>
+                        <label class="control-row" for="renderOccludedLines">
+                            <span>Render Occluded Lines</span>
+                            <select id="renderOccludedLines">
+                                <option value="dashed">Dashed</option>
+                                <option value="solid">Solid</option>
+                                <option value="hidden">Hidden</option>
+                            </select>
+                        </label>
                         <label class="control-stack" for="vertexSize">
                             <span>Vertex Size</span>
                             <input type="range" id="vertexSize" value="0" min="0" max="10" step="0.1" />

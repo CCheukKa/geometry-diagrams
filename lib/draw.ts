@@ -24,12 +24,28 @@ export type Annotation = {
     colour?: string;
 };
 
+export enum RenderOccludedLinesOption {
+    DASHED = "dashed",
+    SOLID = "solid",
+    HIDDEN = "hidden",
+}
+
 export type DrawOptions = {
     vertexSize?: number;
     renderAnnotations?: boolean;
     triangleOpacity?: number;
     annotationsAlwaysOnTop?: boolean;
     edgeThickness?: number;
+    renderOccludedLines?: RenderOccludedLinesOption;
+};
+
+const DEFAULT_DRAW_OPTIONS: DrawOptions = {
+    vertexSize: 5,
+    renderAnnotations: true,
+    triangleOpacity: 0.1,
+    annotationsAlwaysOnTop: true,
+    edgeThickness: 2,
+    renderOccludedLines: RenderOccludedLinesOption.DASHED,
 };
 
 type Drawable =
@@ -50,7 +66,7 @@ function createSvgElement(tagName: string): SVGElement {
     return document.createElementNS(SVG_NS, tagName) as SVGElement;
 }
 
-function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, options: DrawOptions): void {
+function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, options: Required<DrawOptions>): void {
     switch (drawable.type) {
         case "vertex": {
             const projectedVertex = drawable.data as ProjectedVertex & { size: number };
@@ -70,7 +86,7 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
             edgeElement.setAttribute("x2", projectedVertex2.x.toString());
             edgeElement.setAttribute("y2", projectedVertex2.y.toString());
             edgeElement.setAttribute("stroke", drawable.colour ?? PALETTE.edge);
-            edgeElement.setAttribute("stroke-width", (options.edgeThickness ?? 2).toString());
+            edgeElement.setAttribute("stroke-width", (options.edgeThickness).toString());
             if (drawable.dashPattern !== undefined) {
                 edgeElement.setAttribute("stroke-dasharray", `${drawable.dashPattern.dashLength} ${drawable.dashPattern.gapLength}`);
                 edgeElement.setAttribute("stroke-dashoffset", drawable.dashPattern.dashOffset.toString());
@@ -89,7 +105,7 @@ function renderDrawable(paper: HTMLElement & SVGElement, drawable: Drawable, opt
                 `${projectedVertex1.x},${projectedVertex1.y} ${projectedVertex2.x},${projectedVertex2.y} ${projectedVertex3.x},${projectedVertex3.y}`,
             );
             polygon.setAttribute("fill", drawable.colour ?? PALETTE.triangle);
-            polygon.setAttribute("fill-opacity", options.triangleOpacity?.toString() ?? "0.1");
+            polygon.setAttribute("fill-opacity", options.triangleOpacity.toString());
             polygon.setAttribute("stroke-linejoin", "round");
             polygon.setAttribute("shape-rendering", "geometricPrecision");
             paper.appendChild(polygon);
@@ -118,6 +134,7 @@ function appendEdgeSegments(
     projectedTriangles: ProjectedTriangle[],
     projectionType: ProjectionType,
     edgeThickness: number,
+    renderOccludedLines: RenderOccludedLinesOption,
 ): void {
     const hiddenIntervals = getHiddenIntervalsForEdge([projectedVertex1, projectedVertex2], projectedTriangles, projectionType);
     let currentStart = 0;
@@ -229,6 +246,11 @@ function appendEdgeSegments(
 
     for (const interval of hiddenIntervals) {
         pushSegment(currentStart, interval.start);
+        if (renderOccludedLines === RenderOccludedLinesOption.HIDDEN) {
+            currentStart = interval.end;
+            continue;
+        }
+
         const startT = interval.start;
         const endT = interval.end;
         const startVertex = interpolateProjectedVertex(projectedVertex1, projectedVertex2, startT);
@@ -296,14 +318,13 @@ export function drawScene(
     edges: Edge[],
     triangles: Triangle[],
     annotations: Annotation[],
-    options: DrawOptions = {
-        vertexSize: 5,
-        renderAnnotations: true,
-        triangleOpacity: 0.1,
-        annotationsAlwaysOnTop: true,
-        edgeThickness: 2,
-    },
+    userOptions: DrawOptions = DEFAULT_DRAW_OPTIONS,
 ): void {
+    const options = {
+        ...DEFAULT_DRAW_OPTIONS,
+        ...userOptions,
+    } as Required<DrawOptions>;
+
     const projectCache = new Map<Vertex, ProjectedVertex>();
 
     function project(vertex: Vertex): ProjectedVertex {
@@ -320,40 +341,63 @@ export function drawScene(
     const drawables: Drawable[] = [];
     const projectedTriangles: ProjectedTriangle[] = [];
 
-    for (const triangle of triangles) {
-        const [vertex1, vertex2, vertex3] = triangle.vertices;
-        const projectedVertex1 = project(vertex1);
-        const projectedVertex2 = project(vertex2);
-        const projectedVertex3 = project(vertex3);
+    if (options.triangleOpacity > 0 || options.renderOccludedLines !== RenderOccludedLinesOption.SOLID) {
+        for (const triangle of triangles) {
+            const [vertex1, vertex2, vertex3] = triangle.vertices;
+            const projectedVertex1 = project(vertex1);
+            const projectedVertex2 = project(vertex2);
+            const projectedVertex3 = project(vertex3);
 
-        if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedVertex1.withinRenderFrustrum || !projectedVertex2.withinRenderFrustrum || !projectedVertex3.withinRenderFrustrum)) {
-            continue;
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedVertex1.withinRenderFrustrum || !projectedVertex2.withinRenderFrustrum || !projectedVertex3.withinRenderFrustrum)) {
+                continue;
+            }
+
+            const vertices: ProjectedTriangle = [projectedVertex1, projectedVertex2, projectedVertex3];
+            if (options.renderOccludedLines !== RenderOccludedLinesOption.SOLID) {
+                projectedTriangles.push(vertices);
+            }
+
+            if (options.triangleOpacity > 0) {
+                drawables.push({
+                    type: "triangle",
+                    colour: triangle.colour,
+                    data: vertices,
+                    depth: (projectedVertex1.depth + projectedVertex2.depth + projectedVertex3.depth) / 3,
+                });
+            }
         }
-
-        const triangleDrawable: Drawable = {
-            type: "triangle",
-            colour: triangle.colour,
-            data: [projectedVertex1, projectedVertex2, projectedVertex3],
-            depth: (projectedVertex1.depth + projectedVertex2.depth + projectedVertex3.depth) / 3,
-        };
-        projectedTriangles.push(triangleDrawable.data as ProjectedTriangle);
-        drawables.push(triangleDrawable);
     }
 
-    for (const edge of edges) {
-        const [vertex1, vertex2] = edge.vertices;
-        const projectedVertex1 = project(vertex1);
-        const projectedVertex2 = project(vertex2);
+    if (options.edgeThickness > 0) {
+        for (const edge of edges) {
+            const [vertex1, vertex2] = edge.vertices;
+            const projectedVertex1 = project(vertex1);
+            const projectedVertex2 = project(vertex2);
 
-        if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedVertex1.withinRenderFrustrum || !projectedVertex2.withinRenderFrustrum)) {
-            continue;
+            if (camera.projectionType === ProjectionType.PERSPECTIVE && (!projectedVertex1.withinRenderFrustrum || !projectedVertex2.withinRenderFrustrum)) {
+                continue;
+            }
+
+            switch (options.renderOccludedLines) {
+                case RenderOccludedLinesOption.SOLID: {
+                    drawables.push({
+                        type: "edge",
+                        colour: edge.colour,
+                        data: [projectedVertex1, projectedVertex2],
+                        depth: (projectedVertex1.depth + projectedVertex2.depth) / 2,
+                    });
+                    break;
+                }
+                case RenderOccludedLinesOption.DASHED:
+                case RenderOccludedLinesOption.HIDDEN: {
+                    appendEdgeSegments(drawables, edge, projectedVertex1, projectedVertex2, projectedTriangles, camera.projectionType, options.edgeThickness, options.renderOccludedLines);
+                    break;
+                }
+            }
         }
-
-        appendEdgeSegments(drawables, edge, projectedVertex1, projectedVertex2, projectedTriangles, camera.projectionType, options.edgeThickness ?? 2);
     }
 
-    const vertexSize = options.vertexSize ?? 0;
-    if (vertexSize > 0) {
+    if (options.vertexSize > 0) {
         for (const vertex of vertices) {
             const projectedVertex = project(vertex);
             if (camera.projectionType === ProjectionType.PERSPECTIVE && !projectedVertex.withinRenderFrustrum) {
@@ -364,7 +408,7 @@ export function drawScene(
                 type: "vertex",
                 depth: projectedVertex.depth,
                 colour: projectedVertex.colour,
-                data: { ...projectedVertex, size: vertexSize },
+                data: { ...projectedVertex, size: options.vertexSize },
             });
         }
     }

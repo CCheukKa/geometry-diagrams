@@ -1,4 +1,4 @@
-import { drawScene } from "@lib/draw";
+import { drawScene, RenderOccludedLinesOption } from "@lib/draw";
 import { Camera, ProjectionType } from "@lib/camera";
 import { Triangle, Edge, Vertex } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
@@ -22,6 +22,7 @@ const cameraFocalLengthInput = document.getElementById("cameraFocalLength") as H
 const orthographicCheckbox = document.getElementById("orthographic") as HTMLInputElement;
 const showAnnotationsCheckbox = document.getElementById("showAnnotations") as HTMLInputElement;
 const showAnnotationsOnTopCheckbox = document.getElementById("showAnnotationsOnTop") as HTMLInputElement;
+const renderOccludedLinesSelect = document.getElementById("renderOccludedLines") as HTMLSelectElement;
 const vertexSizeInput = document.getElementById("vertexSize") as HTMLInputElement;
 const triangleOpacityInput = document.getElementById("triangleOpacity") as HTMLInputElement;
 const edgeThicknessInput = document.getElementById("edgeThickness") as HTMLInputElement;
@@ -97,6 +98,7 @@ cameraFocalLengthInput.oninput = () => {
 };
 showAnnotationsCheckbox.onchange = renderScene;
 showAnnotationsOnTopCheckbox.onchange = renderScene;
+renderOccludedLinesSelect.onchange = renderScene;
 vertexSizeInput.oninput = renderScene;
 triangleOpacityInput.oninput = renderScene;
 edgeThicknessInput.oninput = renderScene;
@@ -286,6 +288,7 @@ function renderScene() {
             edgeThickness: parseFloat(edgeThicknessInput.value),
             triangleOpacity: parseFloat(triangleOpacityInput.value),
             annotationsAlwaysOnTop: showAnnotationsOnTopCheckbox.checked,
+            renderOccludedLines: renderOccludedLinesSelect.value as RenderOccludedLinesOption,
         },
     );
 }
