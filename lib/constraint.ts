@@ -5,82 +5,6 @@ export namespace ConstraintSolver {
     const POLYGON_NAMES = "𝔸𝔹ℂ𝔻𝔼𝔽𝔾ℍ𝕀𝕁𝕂𝕃𝕄ℕ𝕆ℙℚℝ𝕊𝕋𝕌𝕍𝕎𝕏𝕐ℤ";
     // const ANGLE_NAMES = "αβγδεζηθικλμνξρστυφχψω"; //? removed ο,π
 
-
-    export class ConstraintSolver {
-        private points: Point[] = [];
-        private lines: Line[] = []
-        private planes: Plane[] = [];
-        private polygons: Polygon[] = []
-        private constraints: Constraint[] = [];
-
-        public addPoint(x: number, y: number, z: number, name?: string): Point {
-            const getPointName = (): string => {
-                const usedNames = new Set(this.points.map(p => p.name));
-                const availableNames = POINT_NAMES.split("").filter(name => !usedNames.has(name));
-                if (availableNames.length === 0) {
-                    throw new Error("Ran out of point names");
-                }
-                return availableNames[0]!;
-            }
-
-            const point = new Point(name ?? getPointName());
-            point.x = x;
-            point.y = y;
-            point.z = z;
-            this.points.push(point);
-            return point;
-        }
-
-        public addLine(point1: Point, point2: Point, name?: string): Line {
-            const getLineName = (): string => {
-                const usedNames = new Set(this.lines.map(l => l.name));
-                const availableNames = LINE_NAMES.split("").filter(name => !usedNames.has(name));
-                if (availableNames.length === 0) {
-                    throw new Error("Ran out of line names");
-                }
-                return availableNames[0]!;
-            }
-
-            const line = new Line(point1, point2, name ?? getLineName());
-            this.lines.push(line);
-            return line;
-        }
-
-        public addPlane(point1: Point, point2: Point, point3: Point, name?: string): Plane {
-            const getPlaneName = (): string => {
-                const usedNames = new Set(this.planes.map(p => p.name));
-                const availableNames = PLANE_NAMES.split("").filter(name => !usedNames.has(name));
-                if (availableNames.length === 0) {
-                    throw new Error("Ran out of plane names");
-                }
-                return availableNames[0]!;
-            }
-
-            const plane = new Plane(point1, point2, point3, name ?? getPlaneName());
-            this.planes.push(plane);
-            return plane;
-        }
-
-        public addPolygon(points: Point[], name?: string): Polygon {
-            const getPolygonName = (): string => {
-                const usedNames = new Set(this.polygons.map(p => p.name));
-                const availableNames = POLYGON_NAMES.split("").filter(name => !usedNames.has(name));
-                if (availableNames.length === 0) {
-                    throw new Error("Ran out of polygon names");
-                }
-                return availableNames[0]!;
-            }
-
-            const polygon = new Polygon(points, name ?? getPolygonName());
-            this.polygons.push(polygon);
-            return polygon;
-        }
-
-        public addConstraint(constraint: Constraint) {
-            this.constraints.push(constraint);
-        }
-    }
-
     class Point {
         private _x: number | undefined;
         private _y: number | undefined;
@@ -289,4 +213,79 @@ export namespace ConstraintSolver {
             line1: Line;
             line2: Line;
         }
+
+    export class ConstraintSolver {
+        private points: Point[] = [];
+        private lines: Line[] = []
+        private planes: Plane[] = [];
+        private polygons: Polygon[] = []
+        private constraints: Constraint[] = [];
+
+        public addPoint(x: number, y: number, z: number, name?: string): Point {
+            const getPointName = (): string => {
+                const usedNames = new Set(this.points.map(p => p.name));
+                const availableNames = POINT_NAMES.split("").filter(name => !usedNames.has(name));
+                if (availableNames.length === 0) {
+                    throw new Error("Ran out of point names");
+                }
+                return availableNames[0]!;
+            }
+
+            const point = new Point(name ?? getPointName());
+            point.x = x;
+            point.y = y;
+            point.z = z;
+            this.points.push(point);
+            return point;
+        }
+
+        public addLine(point1: Point, point2: Point, name?: string): Line {
+            const getLineName = (): string => {
+                const usedNames = new Set(this.lines.map(l => l.name));
+                const availableNames = LINE_NAMES.split("").filter(name => !usedNames.has(name));
+                if (availableNames.length === 0) {
+                    throw new Error("Ran out of line names");
+                }
+                return availableNames[0]!;
+            }
+
+            const line = new Line(point1, point2, name ?? getLineName());
+            this.lines.push(line);
+            return line;
+        }
+
+        public addPlane(point1: Point, point2: Point, point3: Point, name?: string): Plane {
+            const getPlaneName = (): string => {
+                const usedNames = new Set(this.planes.map(p => p.name));
+                const availableNames = PLANE_NAMES.split("").filter(name => !usedNames.has(name));
+                if (availableNames.length === 0) {
+                    throw new Error("Ran out of plane names");
+                }
+                return availableNames[0]!;
+            }
+
+            const plane = new Plane(point1, point2, point3, name ?? getPlaneName());
+            this.planes.push(plane);
+            return plane;
+        }
+
+        public addPolygon(points: Point[], name?: string): Polygon {
+            const getPolygonName = (): string => {
+                const usedNames = new Set(this.polygons.map(p => p.name));
+                const availableNames = POLYGON_NAMES.split("").filter(name => !usedNames.has(name));
+                if (availableNames.length === 0) {
+                    throw new Error("Ran out of polygon names");
+                }
+                return availableNames[0]!;
+            }
+
+            const polygon = new Polygon(points, name ?? getPolygonName());
+            this.polygons.push(polygon);
+            return polygon;
+        }
+
+        public addConstraint(constraint: Constraint) {
+            this.constraints.push(constraint);
+        }
+    }
 }

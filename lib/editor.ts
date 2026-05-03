@@ -1,17 +1,5 @@
-import { Edge, Vertex } from "./geometry.ts";
-
-export type ConstraintKind =
-    | "position"
-    | "length"
-    | "angle"
-    | "pointOnLine"
-    | "pointOnLineSegment"
-    | "pointOnPlane"
-    | "pointOnPolygon"
-    | "parallel"
-    | "perpendicular"
-    | "collinear"
-    | "coplanar";
+import { Edge, Vertex } from "@lib/geometry.ts";
+import { ConstraintSolver } from "@lib/constraint";
 
 export type ScenePoint = {
     id: string;
@@ -44,7 +32,7 @@ export type ScenePolygon = {
 
 export type SceneConstraint = {
     id: string;
-    type: ConstraintKind;
+    type: ConstraintSolver.ConstraintType;
     label: string;
     summary: string;
     payload: Record<string, string | number | null | string[]>;
@@ -52,50 +40,52 @@ export type SceneConstraint = {
 
 export type AddConstraintInput =
     | {
-        type: "position";
+        type: ConstraintSolver.ConstraintType.Position;
         pointId: string;
         x: number | null;
         y: number | null;
         z: number | null;
-    }
-    | {
-        type: "length";
+    } | {
+        type: ConstraintSolver.ConstraintType.Length;
         lineId: string;
         length: number;
-    }
-    | {
-        type: "angle";
+    } | {
+        type: ConstraintSolver.ConstraintType.AngleBetweenLines;
         point1Id: string;
         vertexId: string;
         point2Id: string;
         angleDegrees: number;
-    }
-    | {
-        type: "pointOnLine" | "pointOnLineSegment";
+    } | {
+        type: ConstraintSolver.ConstraintType.AngleBetweenLineAndPlane;
+        lineId: string;
+        planeId: string;
+        angleDegrees: number;
+    } | {
+        type: ConstraintSolver.ConstraintType.AngleBetweenPlanes;
+        planeId: string;
+        planeId2: string;
+        angleDegrees: number;
+    } | {
+        type: ConstraintSolver.ConstraintType.PointOnLine | ConstraintSolver.ConstraintType.PointOnLineSegment;
         pointId: string;
         lineId: string;
-    }
-    | {
-        type: "pointOnPlane";
+    } | {
+        type: ConstraintSolver.ConstraintType.PointOnPlane;
         pointId: string;
         planeId: string;
-    }
-    | {
-        type: "pointOnPolygon";
+    } | {
+        type: ConstraintSolver.ConstraintType.PointOnPolygon;
         pointId: string;
         polygonId: string;
-    }
-    | {
-        type: "parallel" | "perpendicular";
+    } | {
+        type: ConstraintSolver.ConstraintType.Parallel | ConstraintSolver.ConstraintType.Perpendicular;
         line1Id: string;
         line2Id: string;
-    }
-    | {
-        type: "collinear";
+    } | {
+        type: ConstraintSolver.ConstraintType.Collinear;
         pointIds: [string, string, string];
-    }
-    | {
-        type: "coplanar";
+    } | {
+        type: ConstraintSolver.ConstraintType.Coplanar;
         pointIds: [string, string, string, string];
     };
 
@@ -250,7 +240,7 @@ export class SceneEditor {
         const id = `constraint-${this.constraintCounter++}`;
 
         switch (input.type) {
-            case "position": {
+            case ConstraintSolver.ConstraintType.Position: {
                 const point = this.getPointById(input.pointId);
                 return {
                     id,
@@ -265,7 +255,7 @@ export class SceneEditor {
                     },
                 };
             }
-            case "length": {
+            case ConstraintSolver.ConstraintType.Length: {
                 const line = this.getLineById(input.lineId);
                 return {
                     id,
@@ -278,7 +268,7 @@ export class SceneEditor {
                     },
                 };
             }
-            case "angle": {
+            case ConstraintSolver.ConstraintType.AngleBetweenLines: {
                 const point1 = this.getPointById(input.point1Id);
                 const vertex = this.getPointById(input.vertexId);
                 const point2 = this.getPointById(input.point2Id);
@@ -295,8 +285,38 @@ export class SceneEditor {
                     },
                 };
             }
-            case "pointOnLine":
-            case "pointOnLineSegment": {
+            case ConstraintSolver.ConstraintType.AngleBetweenLineAndPlane: {
+                const line = this.getLineById(input.lineId);
+                const plane = this.getPlaneById(input.planeId);
+                return {
+                    id,
+                    type: input.type,
+                    label: `${line.name} angle`,
+                    summary: `${line.name} - ${plane.name} = ${this.formatNumber(input.angleDegrees)} deg`,
+                    payload: {
+                        lineId: input.lineId,
+                        planeId: input.planeId,
+                        angleDegrees: input.angleDegrees,
+                    },
+                };
+            }
+            case ConstraintSolver.ConstraintType.AngleBetweenPlanes: {
+                const plane1 = this.getPlaneById(input.planeId);
+                const plane2 = this.getPlaneById(input.planeId2);
+                return {
+                    id,
+                    type: input.type,
+                    label: `Plane angle`,
+                    summary: `${plane1.name} - ${plane2.name} = ${this.formatNumber(input.angleDegrees)} deg`,
+                    payload: {
+                        planeId: input.planeId,
+                        planeId2: input.planeId2,
+                        angleDegrees: input.angleDegrees,
+                    },
+                };
+            }
+            case ConstraintSolver.ConstraintType.PointOnLine:
+            case ConstraintSolver.ConstraintType.PointOnLineSegment: {
                 const point = this.getPointById(input.pointId);
                 const line = this.getLineById(input.lineId);
                 return {
@@ -310,7 +330,7 @@ export class SceneEditor {
                     },
                 };
             }
-            case "pointOnPlane": {
+            case ConstraintSolver.ConstraintType.PointOnPlane: {
                 const point = this.getPointById(input.pointId);
                 const plane = this.getPlaneById(input.planeId);
                 return {
@@ -324,7 +344,7 @@ export class SceneEditor {
                     },
                 };
             }
-            case "pointOnPolygon": {
+            case ConstraintSolver.ConstraintType.PointOnPolygon: {
                 const point = this.getPointById(input.pointId);
                 const polygon = this.getPolygonById(input.polygonId);
                 return {
@@ -338,8 +358,8 @@ export class SceneEditor {
                     },
                 };
             }
-            case "parallel":
-            case "perpendicular": {
+            case ConstraintSolver.ConstraintType.Parallel:
+            case ConstraintSolver.ConstraintType.Perpendicular: {
                 const line1 = this.getLineById(input.line1Id);
                 const line2 = this.getLineById(input.line2Id);
                 return {
@@ -353,7 +373,7 @@ export class SceneEditor {
                     },
                 };
             }
-            case "collinear": {
+            case ConstraintSolver.ConstraintType.Collinear: {
                 const points = input.pointIds.map(pointId => this.getPointById(pointId));
                 return {
                     id,
@@ -365,7 +385,7 @@ export class SceneEditor {
                     },
                 };
             }
-            case "coplanar": {
+            case ConstraintSolver.ConstraintType.Coplanar: {
                 const points = input.pointIds.map(pointId => this.getPointById(pointId));
                 return {
                     id,

@@ -2,9 +2,10 @@ import { drawScene, RenderOccludedLinesOption } from "@lib/draw";
 import { Camera, ProjectionType } from "@lib/camera";
 import { Triangle, Edge, Vertex } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
-import { SceneEditor, type AddConstraintInput, type ConstraintKind } from "@lib/editor";
+import { SceneEditor, type AddConstraintInput } from "@lib/editor";
 import { projectVertex } from "@lib/renderGeometry";
 import { Quat } from "ts-matrix";
+import { ConstraintSolver } from "@lib/constraint";
 
 const HEIGHT = 500;
 const WIDTH = 500;
@@ -73,20 +74,6 @@ const planesList = document.getElementById("planesList") as HTMLUListElement;
 const polygonsList = document.getElementById("polygonsList") as HTMLUListElement;
 const constraintsList = document.getElementById("constraintsList") as HTMLUListElement;
 const editorStatus = document.getElementById("editorStatus") as HTMLParagraphElement;
-
-const constraintKinds: ConstraintKind[] = [
-    "position",
-    "length",
-    "angle",
-    "pointOnLine",
-    "pointOnLineSegment",
-    "pointOnPlane",
-    "pointOnPolygon",
-    "parallel",
-    "perpendicular",
-    "collinear",
-    "coplanar",
-];
 
 cameraRadiusInput.oninput = updateCameraPosition;
 cameraPitchInput.oninput = updateCameraPosition;
@@ -435,8 +422,8 @@ solveBtn.onclick = () => {
 };
 
 function populateConstraintKinds() {
-    constraintTypeInput.innerHTML = constraintKinds
-        .map(kind => `<option value="${kind}">${formatConstraintKind(kind)}</option>`)
+    constraintTypeInput.innerHTML = Object.values(ConstraintSolver.ConstraintType)
+        .map(type => `<option value="${type}">${formatConstraintKind(type)}</option>`)
         .join("");
 }
 
@@ -485,10 +472,10 @@ function renderList(listElement: HTMLUListElement, items: string[]) {
 }
 
 function buildConstraintInput(): AddConstraintInput {
-    const type = constraintTypeInput.value as ConstraintKind;
+    const type = constraintTypeInput.value as ConstraintSolver.ConstraintType;
 
     switch (type) {
-        case "position":
+        case ConstraintSolver.ConstraintType.Position:
             return {
                 type,
                 pointId: constraintPointAInput.value,
@@ -496,13 +483,13 @@ function buildConstraintInput(): AddConstraintInput {
                 y: parseNullableNumber(constraintValueYInput.value),
                 z: parseNullableNumber(constraintValueZInput.value),
             };
-        case "length":
+        case ConstraintSolver.ConstraintType.Length:
             return {
                 type,
                 lineId: constraintLineAInput.value,
                 length: parseRequiredNumber(constraintLengthInput.value, "Length"),
             };
-        case "angle":
+        case ConstraintSolver.ConstraintType.AngleBetweenLines:
             return {
                 type,
                 point1Id: constraintPointAInput.value,
@@ -510,38 +497,52 @@ function buildConstraintInput(): AddConstraintInput {
                 point2Id: constraintPointCInput.value,
                 angleDegrees: parseRequiredNumber(constraintAngleInput.value, "Angle"),
             };
-        case "pointOnLine":
-        case "pointOnLineSegment":
+        case ConstraintSolver.ConstraintType.AngleBetweenLineAndPlane:
+            return {
+                type,
+                lineId: constraintLineAInput.value,
+                planeId: constraintPlaneInput.value,
+                angleDegrees: parseRequiredNumber(constraintAngleInput.value, "Angle"),
+            };
+        case ConstraintSolver.ConstraintType.AngleBetweenPlanes:
+            return {
+                type,
+                planeId: constraintPlaneInput.value,
+                planeId2: constraintPlaneInput.value,
+                angleDegrees: parseRequiredNumber(constraintAngleInput.value, "Angle"),
+            };
+        case ConstraintSolver.ConstraintType.PointOnLine:
+        case ConstraintSolver.ConstraintType.PointOnLineSegment:
             return {
                 type,
                 pointId: constraintPointAInput.value,
                 lineId: constraintLineAInput.value,
             };
-        case "pointOnPlane":
+        case ConstraintSolver.ConstraintType.PointOnPlane:
             return {
                 type,
                 pointId: constraintPointAInput.value,
                 planeId: constraintPlaneInput.value,
             };
-        case "pointOnPolygon":
+        case ConstraintSolver.ConstraintType.PointOnPolygon:
             return {
                 type,
                 pointId: constraintPointAInput.value,
                 polygonId: constraintPolygonInput.value,
             };
-        case "parallel":
-        case "perpendicular":
+        case ConstraintSolver.ConstraintType.Parallel:
+        case ConstraintSolver.ConstraintType.Perpendicular:
             return {
                 type,
                 line1Id: constraintLineAInput.value,
                 line2Id: constraintLineBInput.value,
             };
-        case "collinear":
+        case ConstraintSolver.ConstraintType.Collinear:
             return {
                 type,
                 pointIds: [constraintPointAInput.value, constraintPointBInput.value, constraintPointCInput.value] as [string, string, string],
             };
-        case "coplanar":
+        case ConstraintSolver.ConstraintType.Coplanar:
             return {
                 type,
                 pointIds: [constraintPointAInput.value, constraintPointBInput.value, constraintPointCInput.value, constraintPointDInput.value] as [string, string, string, string],
@@ -569,8 +570,8 @@ function formatNumber(value: number): string {
     return Number.isInteger(value) ? value.toString() : value.toFixed(2);
 }
 
-function formatConstraintKind(kind: ConstraintKind): string {
-    return kind
+function formatConstraintKind(type: ConstraintSolver.ConstraintType): string {
+    return type
         .replace(/[A-Z]/g, match => ` ${match.toLowerCase()}`)
         .replace(/^./, firstLetter => firstLetter.toUpperCase())
         .trim();
