@@ -49,6 +49,10 @@ export function length3(vertex: Vector3D): number {
     return Math.hypot(vertex.x, vertex.y, vertex.z);
 }
 
+export function distance3(vertex1: Vector3D, vertex2: Vector3D): number {
+    return Math.hypot(vertex1.x - vertex2.x, vertex1.y - vertex2.y, vertex1.z - vertex2.z);
+}
+
 export function dot3(vertex1: Vector3D, vertex2: Vector3D): number {
     return vertex1.x * vertex2.x + vertex1.y * vertex2.y + vertex1.z * vertex2.z;
 }

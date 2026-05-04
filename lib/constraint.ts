@@ -1,4 +1,4 @@
-import { cross3, dot3, length3, type Vector3D } from "@lib/mathExtra";
+import { barycentricCoordinates2D, cross3, distance3, dot3, length3, type Vector3D } from "@lib/mathExtra";
 
 const TOLERANCE = 1e-6;
 
@@ -253,173 +253,202 @@ function projectPointOntoPlane(point: Point, plane: Plane): Point {
     };
 }
 
+function radianAngleDifference(angle1: number, angle2: number): number {
+    const diff = angle1 - angle2;
+    return ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
+}
+
 function constraintIsSatisfied(constraint: Constraint): boolean {
     //! exact constraints should be satisfied exactly, while inexact constraints should be satisfied within a tolerance
 
     switch (constraint.type) {
+        // exact constraints
+        case ConstraintType.Position:
+        case ConstraintType.PointOnLine:
+        case ConstraintType.PointOnLineSegment:
+        case ConstraintType.PointOnPlane:
+        case ConstraintType.PointOnPolygon:
+        case ConstraintType.Parallel:
+        case ConstraintType.Perpendicular:
+        case ConstraintType.Collinear:
+        case ConstraintType.Coplanar: {
+            return constraintSignedLoss(constraint) === 0;
+        }
+        // inexact constraints
+        case ConstraintType.Length:
+        case ConstraintType.AngleBetweenLines:
+        case ConstraintType.AngleBetweenLineAndPlane:
+        case ConstraintType.AngleBetweenPlanes:
+        case ConstraintType.DistanceBetweenPointAndLine:
+        case ConstraintType.DistanceBetweenPointAndPlane:
+        case ConstraintType.EqualLength: {
+            return isEqualWithinTolerance(constraintSignedLoss(constraint), 0);
+        }
+        default: {
+            // @ts-ignore
+            throw new Error(`Constraint type ${constraint.type} not implemented yet`);
+        }
+    }
+}
+
+function constraintSignedLoss(constraint: Constraint): number {
+    //! exact constraints should have zero loss when satisfied,
+    //! inexact constraints should have a loss proportional to how unsatisfied they are,
+    //! inexact constraints should give a signed loss indicating the direction of violation
+
+    switch (constraint.type) {
         case ConstraintType.Position: { //$ exact
             const { point, position } = constraint;
-            return point.x === position.x && point.y === position.y && point.z === position.z;
+            const xSatisfied = position.x === null || point.x === position.x;
+            const ySatisfied = position.y === null || point.y === position.y;
+            const zSatisfied = position.z === null || point.z === position.z;
+            return xSatisfied && ySatisfied && zSatisfied ? 0 : 1;
         }
         case ConstraintType.Length: { //& inexact
             const { line, length } = constraint;
-            if (!pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { return false; }
+            if (!pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { throw new Error("Invalid line points"); }
             const lineDir = getLineDirection(line.point1, line.point2);
             const actualLength = length3(lineDir);
-            return isEqualWithinTolerance(actualLength, length);
+            return actualLength - length;
         }
         case ConstraintType.AngleBetweenLines: { //& inexact
             const { point1, vertex, point2, angleRadians } = constraint;
-            if (!pointIsNonNull(point1) || !pointIsNonNull(vertex) || !pointIsNonNull(point2)) { return false; }
+            if (!pointIsNonNull(point1) || !pointIsNonNull(vertex) || !pointIsNonNull(point2)) { throw new Error("Invalid point values"); }
             const line1Dir = getLineDirection(vertex, point1);
             const line2Dir = getLineDirection(vertex, point2);
             const dotProduct = dot3(line1Dir, line2Dir);
             const magnitudeLine1Dir = length3(line1Dir);
             const magnitudeLine2Dir = length3(line2Dir);
             const actualAngle = Math.acos(dotProduct / (magnitudeLine1Dir * magnitudeLine2Dir));
-            return isEqualWithinTolerance(actualAngle, angleRadians);
+            return radianAngleDifference(actualAngle, angleRadians);
         }
         case ConstraintType.AngleBetweenLineAndPlane: { //& inexact
             const { line, plane, angleRadians } = constraint;
-            if (!pointIsNonNull(line.point1) || !pointIsNonNull(line.point2) || !pointIsNonNull(plane.point1) || !pointIsNonNull(plane.point2) || !pointIsNonNull(plane.point3)) { return false; }
+            if (!pointIsNonNull(line.point1) || !pointIsNonNull(line.point2) || !pointIsNonNull(plane.point1) || !pointIsNonNull(plane.point2) || !pointIsNonNull(plane.point3)) { throw new Error("Invalid plane points"); }
             const lineDir = getLineDirection(line.point1, line.point2);
             const planeNormal = getPlaneNormal(plane);
             const dotProduct = dot3(lineDir, planeNormal);
             const magnitudeLineDir = length3(lineDir);
             const magnitudePlaneNormal = length3(planeNormal);
             const actualAngle = Math.asin(dotProduct / (magnitudeLineDir * magnitudePlaneNormal));
-            return isEqualWithinTolerance(actualAngle, angleRadians);
+            return radianAngleDifference(actualAngle, angleRadians);
         }
         case ConstraintType.AngleBetweenPlanes: { //& inexact
             const { plane1, plane2, angleRadians } = constraint;
-            if (!pointIsNonNull(plane1.point1) || !pointIsNonNull(plane1.point2) || !pointIsNonNull(plane1.point3) || !pointIsNonNull(plane2.point1) || !pointIsNonNull(plane2.point2) || !pointIsNonNull(plane2.point3)) { return false; }
+            if (!pointIsNonNull(plane1.point1) || !pointIsNonNull(plane1.point2) || !pointIsNonNull(plane1.point3) || !pointIsNonNull(plane2.point1) || !pointIsNonNull(plane2.point2) || !pointIsNonNull(plane2.point3)) { throw new Error("Invalid plane points"); }
             const plane1Normal = getPlaneNormal(plane1);
             const plane2Normal = getPlaneNormal(plane2);
             const dotProduct = dot3(plane1Normal, plane2Normal);
             const magnitudePlane1Normal = length3(plane1Normal);
             const magnitudePlane2Normal = length3(plane2Normal);
             const actualAngle = Math.acos(dotProduct / (magnitudePlane1Normal * magnitudePlane2Normal));
-            return isEqualWithinTolerance(actualAngle, angleRadians);
+            return radianAngleDifference(actualAngle, angleRadians);
         }
         case ConstraintType.DistanceBetweenPointAndLine: { //& inexact
             const { point, line, distance } = constraint;
-            if (!pointIsNonNull(point) || !pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { return false; }
+            if (!pointIsNonNull(point) || !pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { throw new Error("Invalid point values"); }
             const projectedPoint = projectPointOntoLine(point, line);
             const actualDistance = length3({
                 x: point.x! - projectedPoint.x!,
                 y: point.y! - projectedPoint.y!,
                 z: point.z! - projectedPoint.z!,
             });
-            return isEqualWithinTolerance(actualDistance, distance);
+            return actualDistance - distance;
         }
         case ConstraintType.DistanceBetweenPointAndPlane: { //& inexact
             const { point, plane, distance } = constraint;
-            if (!pointIsNonNull(point) || !pointIsNonNull(plane.point1) || !pointIsNonNull(plane.point2) || !pointIsNonNull(plane.point3)) { return false; }
+            if (!pointIsNonNull(point) || !pointIsNonNull(plane.point1) || !pointIsNonNull(plane.point2) || !pointIsNonNull(plane.point3)) { throw new Error("Invalid plane points"); }
             const projectedPoint = projectPointOntoPlane(point, plane);
             const actualDistance = length3({
                 x: point.x! - projectedPoint.x!,
                 y: point.y! - projectedPoint.y!,
                 z: point.z! - projectedPoint.z!,
             });
-            return isEqualWithinTolerance(actualDistance, distance);
+            return actualDistance - distance;
         }
         case ConstraintType.PointOnLine: { //$ exact
             const { point, line } = constraint;
-            if (!pointIsNonNull(point) || !pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { return false; }
+            if (!pointIsNonNull(point) || !pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { throw new Error("Invalid point values"); }
             const projectedPoint = projectPointOntoLine(point, line);
-            return isEqualWithinTolerance(projectedPoint.x!, point.x!) && isEqualWithinTolerance(projectedPoint.y!, point.y!) && isEqualWithinTolerance(projectedPoint.z!, point.z!);
+            return distance3(point as Vector3D, projectedPoint as Vector3D);
         }
         case ConstraintType.PointOnLineSegment: { //$ exact
             const { point, line } = constraint;
-            if (!pointIsNonNull(point) || !pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { return false; }
+            if (!pointIsNonNull(point) || !pointIsNonNull(line.point1) || !pointIsNonNull(line.point2)) { throw new Error("Invalid point values"); }
             const projectedPoint = projectPointOntoLine(point, line);
-            if (!isEqualWithinTolerance(projectedPoint.x!, point.x!) || !isEqualWithinTolerance(projectedPoint.y!, point.y!) || !isEqualWithinTolerance(projectedPoint.z!, point.z!)) {
-                return false;
-            }
             const lineDir = getLineDirection(line.point1, line.point2);
-            const toProjectedPoint = getLineDirection(line.point1, projectedPoint);
-            const dotProduct = dot3(lineDir, toProjectedPoint);
-            return dotProduct >= 0 && dotProduct <= dot3(lineDir, lineDir);
+            const projectedPointDir = getLineDirection(line.point1, projectedPoint);
+            const dotProduct = dot3(lineDir, projectedPointDir);
+            if (dotProduct < 0) {
+                return distance3(point as Vector3D, line.point1 as Vector3D);
+            }
+            const lineLengthSquared = dot3(lineDir, lineDir);
+            if (dotProduct > lineLengthSquared) {
+                return distance3(point as Vector3D, line.point2 as Vector3D);
+            }
+            return distance3(point as Vector3D, projectedPoint as Vector3D);
         }
         case ConstraintType.PointOnPlane: { //$ exact
             const { point, plane } = constraint;
-            if (!pointIsNonNull(point) || !pointIsNonNull(plane.point1) || !pointIsNonNull(plane.point2) || !pointIsNonNull(plane.point3)) { return false; }
+            if (!pointIsNonNull(point) || !pointIsNonNull(plane.point1) || !pointIsNonNull(plane.point2) || !pointIsNonNull(plane.point3)) { throw new Error("Invalid point values"); }
             const projectedPoint = projectPointOntoPlane(point, plane);
-            return isEqualWithinTolerance(projectedPoint.x!, point.x!) && isEqualWithinTolerance(projectedPoint.y!, point.y!) && isEqualWithinTolerance(projectedPoint.z!, point.z!);
+            return distance3(projectedPoint as Vector3D, point as Vector3D);
         }
         case ConstraintType.PointOnPolygon: { //$ exact
             const { point, polygon } = constraint;
-            if (!pointIsNonNull(point) || polygon.points.some(p => !pointIsNonNull(p))) { return false; }
+            if (!pointIsNonNull(point) || polygon.points.some(p => !pointIsNonNull(p))) { throw new Error("Invalid point values"); }
             //? check if point is on the same plane as the polygon
             const plane = new _Plane(polygon.points[0]!, polygon.points[1]!, polygon.points[2]!, "tempPlane");
             const projectedPoint = projectPointOntoPlane(point, plane);
-            if (!isEqualWithinTolerance(projectedPoint.x!, point.x!) || !isEqualWithinTolerance(projectedPoint.y!, point.y!) || !isEqualWithinTolerance(projectedPoint.z!, point.z!)) {
-                return false;
+            if (distance3(projectedPoint as Vector3D, point as Vector3D) > TOLERANCE) {
+                return distance3(projectedPoint as Vector3D, point as Vector3D);
             }
-            //? check if point is inside the polygon using ray-casting algorithm
-            let intersections = 0;
-            for (let i = 0; i < polygon.points.length; i++) {
-                const vertex1 = polygon.points[i]!;
-                const vertex2 = polygon.points[(i + 1) % polygon.points.length]!;
-                const edge = new _Line(vertex1, vertex2, "tempEdge");
-                const projectedPointOnEdge = projectPointOntoLine(point, edge);
-                if (isEqualWithinTolerance(projectedPointOnEdge.x!, point.x!) && isEqualWithinTolerance(projectedPointOnEdge.y!, point.y!) && isEqualWithinTolerance(projectedPointOnEdge.z!, point.z!)) {
-                    return true; // point is on the edge of the polygon
-                }
-                //? check if the edge intersects with a ray from the point in an arbitrary direction (e.g. positive x-axis)
-                const ray = new _Line(point, { x: point.x! + 1, y: point.y!, z: point.z!, name: "tempRay" }, "tempRay");
-                const projectedVertex1 = projectPointOntoLine(vertex1, ray);
-                const projectedVertex2 = projectPointOntoLine(vertex2, ray);
-                const vertex1AboveRay = projectedVertex1.x! > point.x!;
-                const vertex2AboveRay = projectedVertex2.x! > point.x!;
-                if (vertex1AboveRay !== vertex2AboveRay) {
-                    const edgeDir = getLineDirection(vertex1, vertex2);
-                    const rayDir = getLineDirection(ray.point1, ray.point2);
-                    const edgeToRayStart = getLineDirection(vertex1, ray.point1);
-                    const cross1 = cross3(edgeDir, rayDir);
-                    const cross2 = cross3(edgeToRayStart, rayDir);
-                    const t = dot3(cross2, cross1) / dot3(cross1, cross1);
-                    if (t >= 0 && t <= 1) {
-                        intersections++;
-                    }
-                }
+            //? check if the projected point is inside the polygon using barycentric coordinates
+            const triangle = [polygon.points[0]!, polygon.points[1]!, polygon.points[2]!];
+            const baryCoords = barycentricCoordinates2D({ x: projectedPoint.x!, y: projectedPoint.y! }, triangle.map(p => ({ x: p.x!, y: p.y! })) as [Vector3D, Vector3D, Vector3D]);
+            if (baryCoords === null) {
+                throw new Error("Failed to calculate barycentric coordinates for polygon");
             }
-            return intersections % 2 === 1; // point is inside the polygon if there are an odd number of intersections
+            const [w1, w2, w3] = baryCoords;
+            if (w1 >= -TOLERANCE && w2 >= -TOLERANCE && w3 >= -TOLERANCE) {
+                return 0;
+            }
+            return Math.min(distance3(projectedPoint as Vector3D, polygon.points[0] as Vector3D), distance3(projectedPoint as Vector3D, polygon.points[1] as Vector3D), distance3(projectedPoint as Vector3D, polygon.points[2] as Vector3D));
         }
         case ConstraintType.Parallel: { //$ exact
             const { line1, line2 } = constraint;
-            if (!pointIsNonNull(line1.point1) || !pointIsNonNull(line1.point2) || !pointIsNonNull(line2.point1) || !pointIsNonNull(line2.point2)) { return false; }
+            if (!pointIsNonNull(line1.point1) || !pointIsNonNull(line1.point2) || !pointIsNonNull(line2.point1) || !pointIsNonNull(line2.point2)) { throw new Error("Invalid line points"); }
             const line1Dir = getLineDirection(line1.point1, line1.point2);
             const line2Dir = getLineDirection(line2.point1, line2.point2);
             const crossProduct = cross3(line1Dir, line2Dir);
-            return length3(crossProduct) < TOLERANCE;
+            return length3(crossProduct);
         }
         case ConstraintType.Perpendicular: { //$ exact
             const { line1, line2 } = constraint;
-            if (!pointIsNonNull(line1.point1) || !pointIsNonNull(line1.point2) || !pointIsNonNull(line2.point1) || !pointIsNonNull(line2.point2)) { return false; }
+            if (!pointIsNonNull(line1.point1) || !pointIsNonNull(line1.point2) || !pointIsNonNull(line2.point1) || !pointIsNonNull(line2.point2)) { throw new Error("Invalid line points"); }
             const line1Dir = getLineDirection(line1.point1, line1.point2);
             const line2Dir = getLineDirection(line2.point1, line2.point2);
             const dotProduct = dot3(line1Dir, line2Dir);
-            return Math.abs(dotProduct) < TOLERANCE;
+            return dotProduct;
         }
         case ConstraintType.Collinear: { //$ exact
             const { point1, point2 } = constraint;
-            if (!pointIsNonNull(point1) || !pointIsNonNull(point2)) { return false; }
-            return point1.x! * point2.y! === point1.y! * point2.x! && point1.x! * point2.z! === point1.z! * point2.x! && point1.y! * point2.z! === point1.z! * point2.y!;
+            if (!pointIsNonNull(point1) || !pointIsNonNull(point2)) { throw new Error("Invalid point points"); }
+            return distance3(point1 as Vector3D, point2 as Vector3D);
         }
         case ConstraintType.Coplanar: { //$ exact
             const { point1, point2 } = constraint;
-            if (!pointIsNonNull(point1) || !pointIsNonNull(point2)) { return false; }
-            return point1.x! * point2.y! === point1.y! * point2.x! && point1.x! * point2.z! === point1.z! * point2.x! && point1.y! * point2.z! === point1.z! * point2.y!;
+            if (!pointIsNonNull(point1) || !pointIsNonNull(point2)) { throw new Error("Invalid point points"); }
+            return distance3(point1 as Vector3D, point2 as Vector3D);
         }
         case ConstraintType.EqualLength: { //& inexact
             const { line1, line2 } = constraint;
-            if (!pointIsNonNull(line1.point1) || !pointIsNonNull(line1.point2) || !pointIsNonNull(line2.point1) || !pointIsNonNull(line2.point2)) { return false; }
+            if (!pointIsNonNull(line1.point1) || !pointIsNonNull(line1.point2) || !pointIsNonNull(line2.point1) || !pointIsNonNull(line2.point2)) { throw new Error("Invalid line points"); }
             const line1Dir = getLineDirection(line1.point1, line1.point2);
             const line2Dir = getLineDirection(line2.point1, line2.point2);
             const lengthLine1 = length3(line1Dir);
             const lengthLine2 = length3(line2Dir);
-            return Math.abs(lengthLine1 - lengthLine2) < TOLERANCE;
+            return lengthLine1 - lengthLine2;
         }
         default: {
             // @ts-ignore
@@ -436,13 +465,17 @@ enum SolverStatus {
     SOLVING = "solving",
     UNSOLVABLE = "unsolvable",
 }
-type Solution = {
+export type Solution = {
     points: Point[];
     lines: Line[];
     planes: Plane[];
     polygons: Polygon[];
     constraints: Constraint[];
     status: SolverStatus;
+}
+type DegreeOfFreedom = {
+    object: Point | Line | Plane | Polygon;
+    property: string;
 }
 export class ConstraintSolver {
     private _points: _Point[] = [];
@@ -451,6 +484,7 @@ export class ConstraintSolver {
     private _polygons: _Polygon[] = []
     private _constraints: Constraint[] = [];
     private _status: SolverStatus;
+    private _degreesOfFreedom: DegreeOfFreedom[] = [];
 
     constructor() {
         this._status = SolverStatus.UNSOLVED;
@@ -529,6 +563,7 @@ export class ConstraintSolver {
 
     public async solve(): Promise<Solution> {
         this._status = SolverStatus.SOLVING;
+        this._degreesOfFreedom = [];
 
         // reset all points to null
         for (const point of this._points) {
@@ -546,6 +581,35 @@ export class ConstraintSolver {
             }
         }
 
+        // get degrees of freedom
+        const RANDOM_RANGE = { min: -100, max: 100 };
+        for (const point of this._points) {
+            if (point.x === null) {
+                this._degreesOfFreedom.push({ object: point, property: "x" });
+                point.x = Math.random() * (RANDOM_RANGE.max - RANDOM_RANGE.min) + RANDOM_RANGE.min;
+            }
+            if (point.y === null) {
+                this._degreesOfFreedom.push({ object: point, property: "y" });
+                point.y = Math.random() * (RANDOM_RANGE.max - RANDOM_RANGE.min) + RANDOM_RANGE.min;
+            }
+            if (point.z === null) {
+                this._degreesOfFreedom.push({ object: point, property: "z" });
+                point.z = Math.random() * (RANDOM_RANGE.max - RANDOM_RANGE.min) + RANDOM_RANGE.min;
+            }
+        }
+
+        // gradient descent
+        const MAX_ITERATIONS = 10000;
+        for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+            const loss = this.getTotalLoss();
+            console.log(`Iteration ${iteration}: loss = ${loss}`);
+            if (loss < TOLERANCE) { break; }
+            const gradients: number[] = this._degreesOfFreedom.map(dof => this.getGradient(dof));
+            this._degreesOfFreedom.forEach((dof, index) => {
+                (dof.object as any)[dof.property] -= this.getLearningRate(iteration) * gradients[index]!;
+            });
+        }
+
         this._status = this.constraints.every(constraintIsSatisfied) ? SolverStatus.SOLVED : SolverStatus.UNSOLVABLE;
         return {
             points: this._points,
@@ -555,5 +619,28 @@ export class ConstraintSolver {
             constraints: this._constraints,
             status: this._status,
         };
+    }
+
+    private getGradient(dof: DegreeOfFreedom): number {
+        const originalValue = (dof.object as any)[dof.property];
+        const delta = 1e-5;
+        (dof.object as any)[dof.property] = originalValue + delta;
+        const lossPlus = this._constraints.reduce((totalLoss, constraint) => totalLoss + Math.abs(constraintSignedLoss(constraint)), 0);
+        (dof.object as any)[dof.property] = originalValue - delta;
+        const lossMinus = this._constraints.reduce((totalLoss, constraint) => totalLoss + Math.abs(constraintSignedLoss(constraint)), 0);
+        (dof.object as any)[dof.property] = originalValue;
+        return (lossPlus - lossMinus) / (2 * delta);
+    }
+
+    private getTotalLoss(): number {
+        return this._constraints.reduce((totalLoss, constraint) => {
+            const constraintLoss = constraintSignedLoss(constraint);
+            console.log(`Constraint ${constraint.type} loss: ${constraintLoss}`);
+            return totalLoss + Math.abs(constraintLoss);
+        }, 0);
+    }
+
+    private getLearningRate(iteration: number): number {
+        return 0.01;
     }
 }

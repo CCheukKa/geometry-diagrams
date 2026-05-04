@@ -1,10 +1,10 @@
-import { drawScene, RenderOccludedLinesOption } from "@lib/draw";
+import { drawScene, RenderOccludedLinesOption, type Annotation } from "@lib/draw";
 import { Camera, ProjectionType } from "@lib/camera";
 import { Triangle, Edge, Vertex } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { projectVertex } from "@lib/renderGeometry";
 import { Quat } from "ts-matrix";
-import { ConstraintSolver, ConstraintType } from "@lib/constraint";
+import { ConstraintSolver, ConstraintType, type Solution } from "@lib/constraint";
 
 const HEIGHT = 500;
 const WIDTH = 500;
@@ -56,54 +56,115 @@ const xAxisStub = new Edge(origin, new Vertex(100, 0, 0), "red");
 const yAxisStub = new Edge(origin, new Vertex(0, 100, 0), "green");
 const zAxisStub = new Edge(origin, new Vertex(0, 0, 100), "blue");
 
-// cube centered at (0, 0, 0)
-const p1 = new Vertex(-50, -50, -50);
-const p2 = new Vertex(50, -50, -50);
-const p3 = new Vertex(50, 50, -50);
-const p4 = new Vertex(-50, 50, -50);
-const p5 = new Vertex(-50, -50, 50);
-const p6 = new Vertex(50, -50, 50);
-const p7 = new Vertex(50, 50, 50);
-const p8 = new Vertex(-50, 50, 50);
-const vertices = [origin, p1, p2, p3, p4, p5, p6, p7, p8];
-// top edges in yellow, bottom edges in cyan, vertical edges in magenta
-const edges = [
-    xAxisStub,
-    yAxisStub,
-    zAxisStub,
-    new Edge(p1, p2, "cyan"),
-    new Edge(p2, p3, "cyan"),
-    new Edge(p3, p4, "cyan"),
-    new Edge(p4, p1, "cyan"),
-    new Edge(p5, p6, "yellow"),
-    new Edge(p6, p7, "yellow"),
-    new Edge(p7, p8, "yellow"),
-    new Edge(p8, p5, "yellow"),
-    new Edge(p1, p5, "magenta"),
-    new Edge(p2, p6, "magenta"),
-    new Edge(p3, p7, "magenta"),
-    new Edge(p4, p8, "magenta"),
-];
-const triangles = [
-    new Triangle(p1, p2, p3, "cyan"),
-    new Triangle(p1, p3, p4, "cyan"),
-    new Triangle(p5, p6, p7, "yellow"),
-    new Triangle(p5, p7, p8, "yellow"),
-    new Triangle(p1, p2, p6, "magenta"),
-    new Triangle(p1, p6, p5, "magenta"),
-    new Triangle(p4, p3, p7, "magenta"),
-    new Triangle(p4, p7, p8, "magenta"),
-    new Triangle(p1, p4, p8, "magenta"),
-    new Triangle(p1, p8, p5, "magenta"),
-    new Triangle(p2, p3, p7, "magenta"),
-    new Triangle(p2, p7, p6, "magenta"),
-];
+const solver = new ConstraintSolver();
+// const A = solver.addPoint("A");
+// const B = solver.addPoint("B");
+// const C = solver.addPoint("C");
+// const AB = solver.addLine(A, B);
+// const BC = solver.addLine(B, C);
+// const CA = solver.addLine(C, A);
+// solver.addConstraint({
+//     type: ConstraintType.Position,
+//     point: A,
+//     position: { x: 0, y: 0, z: 0 },
+// });
+// solver.addConstraint({
+//     type: ConstraintType.Position,
+//     point: B,
+//     position: { x: null, y: null, z: 0 },
+// });
+// solver.addConstraint({
+//     type: ConstraintType.Position,
+//     point: C,
+//     position: { x: null, y: null, z: 0 },
+// });
+// solver.addConstraint({
+//     type: ConstraintType.AngleBetweenLines,
+//     point1: A,
+//     vertex: B,
+//     point2: C,
+//     angleRadians: Math.PI / 3,
+// });
+// solver.addConstraint({
+//     type: ConstraintType.Length,
+//     line: AB,
+//     length: 10,
+// });
 
-const annotations = [
-    { text: "X", position: xAxisStub.vertices[1], colour: "red" },
-    { text: "Y", position: yAxisStub.vertices[1], colour: "green" },
-    { text: "Z", position: zAxisStub.vertices[1], colour: "blue" },
-];
+// parallelogram ABCD, AB//CD, AD//BC, AB=CD=10, ∠ABC=60°
+const A = solver.addPoint("A");
+const B = solver.addPoint("B");
+const C = solver.addPoint("C");
+const D = solver.addPoint("D");
+const AB = solver.addLine(A, B);
+const BC = solver.addLine(B, C);
+const CD = solver.addLine(C, D);
+const DA = solver.addLine(D, A);
+solver.addConstraint({
+    type: ConstraintType.Position,
+    point: A,
+    position: { x: 0, y: 0, z: 0 },
+});
+solver.addConstraint({
+    type: ConstraintType.Position,
+    point: B,
+    position: { x: null, y: null, z: 0 },
+});
+solver.addConstraint({
+    type: ConstraintType.Position,
+    point: C,
+    position: { x: null, y: null, z: 0 },
+});
+solver.addConstraint({
+    type: ConstraintType.Position,
+    point: D,
+    position: { x: null, y: null, z: 0 },
+});
+solver.addConstraint({
+    type: ConstraintType.Parallel,
+    line1: AB,
+    line2: CD,
+});
+solver.addConstraint({
+    type: ConstraintType.Parallel,
+    line1: DA,
+    line2: BC,
+});
+solver.addConstraint({
+    type: ConstraintType.Length,
+    line: AB,
+    length: 20,
+});
+solver.addConstraint({
+    type: ConstraintType.Length,
+    line: CD,
+    length: 20,
+});
+solver.addConstraint({
+    type: ConstraintType.Length,
+    line: DA,
+    length: 20,
+});
+solver.addConstraint({
+    type: ConstraintType.Length,
+    line: BC,
+    length: 20,
+});
+solver.addConstraint({
+    type: ConstraintType.AngleBetweenLines,
+    point1: A,
+    vertex: B,
+    point2: C,
+    angleRadians: Math.PI / 3,
+});
+
+const solution = await solver.solve();
+console.log(solution);
+
+const { vertices, edges, triangles, annotations } = drawSolution(solution);
+
+vertices.push(origin);
+edges.push(xAxisStub, yAxisStub, zAxisStub);
 
 const camera = new Camera(
     ProjectionType.PERSPECTIVE,
@@ -118,6 +179,29 @@ const camera = new Camera(
 
 updateCameraPosition();
 renderScene();
+
+/* -------------------------------------------------------------------------- */
+
+function drawSolution(solution: Solution): { vertices: Vertex[]; edges: Edge[]; triangles: Triangle[]; annotations: Annotation[] } {
+    const vertices: Vertex[] = solution.points.map(point => new Vertex(point.x!, point.y!, point.z!));
+    const edges: Edge[] = solution.lines.map(line => new Edge(
+        vertices[solution.points.indexOf(line.point1)]!,
+        vertices[solution.points.indexOf(line.point2)]!,
+        "orange",
+    ));
+    const triangles: Triangle[] = solution.planes.map(plane => new Triangle(
+        vertices[solution.points.indexOf(plane.point1)]!,
+        vertices[solution.points.indexOf(plane.point2)]!,
+        vertices[solution.points.indexOf(plane.point3)]!,
+        "orangered",
+    ));
+    const annotations: Annotation[] = solution.points.map(point => ({
+        position: vertices[solution.points.indexOf(point)]!,
+        text: point.name,
+        colour: "white",
+    }));
+    return { vertices, edges, triangles, annotations };
+}
 
 /* -------------------------------------------------------------------------- */
 
@@ -291,26 +375,3 @@ function getSvgContentBounds(): { x: number; y: number; width: number; height: n
         height: maxY - minY,
     };
 }
-
-/* -------------------------------------------------------------------------- */
-
-const solver = new ConstraintSolver();
-const A = solver.addPoint("A");
-const B = solver.addPoint("B");
-solver.addConstraint({
-    type: ConstraintType.Position,
-    point: A,
-    position: { x: 0, y: 0, z: 0 },
-});
-solver.addConstraint({
-    type: ConstraintType.Position,
-    point: B,
-    position: { x: null, y: 0, z: 0 },
-});
-solver.addConstraint({
-    type: ConstraintType.Length,
-    line: solver.addLine(A, B),
-    length: 10,
-});
-const solution = await solver.solve();
-console.log(solution);
