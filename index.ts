@@ -96,10 +96,15 @@ const A = solver.addPoint("A");
 const B = solver.addPoint("B");
 const C = solver.addPoint("C");
 const D = solver.addPoint("D");
+const V = solver.addPoint("V");
 const AB = solver.addLine(A, B);
 const BC = solver.addLine(B, C);
 const CD = solver.addLine(C, D);
 const DA = solver.addLine(D, A);
+const VA = solver.addLine(V, A);
+const VB = solver.addLine(V, B);
+const VC = solver.addLine(V, C);
+const VD = solver.addLine(V, D);
 solver.addConstraint({
     type: ConstraintType.Position,
     point: A,
@@ -133,22 +138,27 @@ solver.addConstraint({
 solver.addConstraint({
     type: ConstraintType.Length,
     line: AB,
-    length: 20,
+    length: 50,
 });
 solver.addConstraint({
     type: ConstraintType.Length,
     line: CD,
-    length: 20,
+    length: 50,
 });
 solver.addConstraint({
     type: ConstraintType.Length,
     line: DA,
-    length: 20,
+    length: 50,
 });
 solver.addConstraint({
     type: ConstraintType.Length,
     line: BC,
-    length: 20,
+    length: 50,
+});
+solver.addConstraint({
+    type: ConstraintType.Length,
+    line: VA,
+    length: 50,
 });
 solver.addConstraint({
     type: ConstraintType.AngleBetweenLines,
@@ -157,27 +167,72 @@ solver.addConstraint({
     point2: C,
     angleRadians: Math.PI / 3,
 });
+solver.addConstraint({
+    type: ConstraintType.AngleBetweenLines,
+    point1: B,
+    vertex: C,
+    point2: D,
+    angleRadians: Math.PI / 3 * 2,
+});
+solver.addConstraint({
+    type: ConstraintType.EqualLength,
+    line1: VA,
+    line2: VB,
+});
+solver.addConstraint({
+    type: ConstraintType.EqualLength,
+    line1: VB,
+    line2: VC,
+});
+solver.addConstraint({
+    type: ConstraintType.EqualLength,
+    line1: VC,
+    line2: VD,
+});
 
-const solution = await solver.solve();
-console.log(solution);
-
-const { vertices, edges, triangles, annotations } = drawSolution(solution);
-
-vertices.push(origin);
-edges.push(xAxisStub, yAxisStub, zAxisStub);
+let latestScene = {
+    vertices: [origin],
+    edges: [xAxisStub, yAxisStub, zAxisStub],
+    triangles: [] as Triangle[],
+    annotations: [] as Annotation[],
+};
 
 const camera = new Camera(
     ProjectionType.PERSPECTIVE,
     { x: 500, y: 500, z: 500 },
-    {
-        x: (Math.min(...vertices.map(p => p.x)) + Math.max(...vertices.map(p => p.x))) / 2,
-        y: (Math.min(...vertices.map(p => p.y)) + Math.max(...vertices.map(p => p.y))) / 2,
-        z: (Math.min(...vertices.map(p => p.z)) + Math.max(...vertices.map(p => p.z))) / 2,
-    },
+    { x: 0, y: 0, z: 0 },
     { x: 1, y: 1 },
 );
 
 updateCameraPosition();
+renderScene();
+
+const solutionPromise = solver.solve({
+    onIteration: () => {
+        latestScene = drawSolution({
+            points: solver.points,
+            lines: solver.lines,
+            planes: solver.planes,
+            polygons: solver.polygons,
+            constraints: solver.constraints,
+            status: solver.status,
+        });
+        renderScene();
+    },
+});
+
+const solution = await solutionPromise;
+console.log(solution);
+
+latestScene = drawSolution(solution);
+latestScene.vertices.push(origin);
+latestScene.edges.push(xAxisStub, yAxisStub, zAxisStub);
+
+camera.lookAtTarget = {
+    x: (Math.min(...latestScene.vertices.map(p => p.x)) + Math.max(...latestScene.vertices.map(p => p.x))) / 2,
+    y: (Math.min(...latestScene.vertices.map(p => p.y)) + Math.max(...latestScene.vertices.map(p => p.y))) / 2,
+    z: (Math.min(...latestScene.vertices.map(p => p.z)) + Math.max(...latestScene.vertices.map(p => p.z))) / 2,
+};
 renderScene();
 
 /* -------------------------------------------------------------------------- */
@@ -229,10 +284,10 @@ function renderScene() {
     drawScene(
         paperElement,
         camera,
-        [...vertices],
-        [...edges],
-        triangles,
-        [...annotations],
+        [...latestScene.vertices],
+        [...latestScene.edges],
+        latestScene.triangles,
+        [...latestScene.annotations],
         {
             renderAnnotations: showAnnotationsCheckbox.checked,
             vertexSize: parseFloat(vertexSizeInput.value),

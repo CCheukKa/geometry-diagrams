@@ -272,7 +272,7 @@ function constraintIsSatisfied(constraint: Constraint): boolean {
         case ConstraintType.Perpendicular:
         case ConstraintType.Collinear:
         case ConstraintType.Coplanar: {
-            return constraintSignedLoss(constraint) === 0;
+            return scaledConstraintSignedLoss(constraint) === 0;
         }
         // inexact constraints
         case ConstraintType.Length:
@@ -282,7 +282,7 @@ function constraintIsSatisfied(constraint: Constraint): boolean {
         case ConstraintType.DistanceBetweenPointAndLine:
         case ConstraintType.DistanceBetweenPointAndPlane:
         case ConstraintType.EqualLength: {
-            return isEqualWithinTolerance(constraintSignedLoss(constraint), 0);
+            return isEqualWithinTolerance(scaledConstraintSignedLoss(constraint), 0);
         }
         default: {
             // @ts-ignore
@@ -291,7 +291,29 @@ function constraintIsSatisfied(constraint: Constraint): boolean {
     }
 }
 
-function constraintSignedLoss(constraint: Constraint): number {
+function scaledConstraintSignedLoss(constraint: Constraint): number {
+    const scalingFactor: Record<ConstraintType, number> = {
+        [ConstraintType.Position]: 1,
+        [ConstraintType.Length]: 2,
+        [ConstraintType.AngleBetweenLines]: 3,
+        [ConstraintType.AngleBetweenLineAndPlane]: 3,
+        [ConstraintType.AngleBetweenPlanes]: 3,
+        [ConstraintType.DistanceBetweenPointAndLine]: 1,
+        [ConstraintType.DistanceBetweenPointAndPlane]: 1,
+        [ConstraintType.PointOnLine]: 1,
+        [ConstraintType.PointOnLineSegment]: 1,
+        [ConstraintType.PointOnPlane]: 1,
+        [ConstraintType.PointOnPolygon]: 1,
+        [ConstraintType.Parallel]: 0.05,
+        [ConstraintType.Perpendicular]: 0.05,
+        [ConstraintType.Collinear]: 1,
+        [ConstraintType.Coplanar]: 1,
+        [ConstraintType.EqualLength]: 1,
+    };
+    return rawConstraintSignedLoss(constraint) * (scalingFactor[constraint.type] ?? 1);
+}
+
+function rawConstraintSignedLoss(constraint: Constraint): number {
     //! exact constraints should have zero loss when satisfied,
     //! inexact constraints should have a loss proportional to how unsatisfied they are,
     //! inexact constraints should give a signed loss indicating the direction of violation
@@ -473,6 +495,16 @@ export type Solution = {
     constraints: Constraint[];
     status: SolverStatus;
 }
+export type SolveIterationInfo = {
+    iteration: number;
+    loss: number;
+    learningRate: number;
+    gradients: number[];
+};
+export type SolveOptions = {
+    onIteration?: (info: SolveIterationInfo) => void | Promise<void>;
+    yieldToBrowser?: boolean;
+};
 type DegreeOfFreedom = {
     object: Point | Line | Plane | Polygon;
     property: string;
@@ -561,7 +593,7 @@ export class ConstraintSolver {
         this._constraints.push(constraint);
     }
 
-    public async solve(): Promise<Solution> {
+    public async solve(options: SolveOptions = {}): Promise<Solution> {
         this._status = SolverStatus.SOLVING;
         this._degreesOfFreedom = [];
 
@@ -582,7 +614,7 @@ export class ConstraintSolver {
         }
 
         // get degrees of freedom
-        const RANDOM_RANGE = { min: -100, max: 100 };
+        const RANDOM_RANGE = { min: -500, max: 500 };
         for (const point of this._points) {
             if (point.x === null) {
                 this._degreesOfFreedom.push({ object: point, property: "x" });
@@ -600,14 +632,29 @@ export class ConstraintSolver {
 
         // gradient descent
         const MAX_ITERATIONS = 10000;
+        const LOSS_TOLERANCE = 1e-2;
         for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
             const loss = this.getTotalLoss();
             console.log(`Iteration ${iteration}: loss = ${loss}`);
-            if (loss < TOLERANCE) { break; }
+            const learningRate = this.getLearningRate(iteration);
             const gradients: number[] = this._degreesOfFreedom.map(dof => this.getGradient(dof));
-            this._degreesOfFreedom.forEach((dof, index) => {
-                (dof.object as any)[dof.property] -= this.getLearningRate(iteration) * gradients[index]!;
+
+            await options.onIteration?.({
+                iteration,
+                loss,
+                learningRate,
+                gradients,
             });
+
+            if (loss < LOSS_TOLERANCE) { break; }
+
+            this._degreesOfFreedom.forEach((dof, index) => {
+                (dof.object as any)[dof.property] -= learningRate * gradients[index]! * this.getTemperature(iteration);
+            });
+
+            if (options.yieldToBrowser !== false) {
+                await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+            }
         }
 
         this._status = this.constraints.every(constraintIsSatisfied) ? SolverStatus.SOLVED : SolverStatus.UNSOLVABLE;
@@ -625,22 +672,34 @@ export class ConstraintSolver {
         const originalValue = (dof.object as any)[dof.property];
         const delta = 1e-5;
         (dof.object as any)[dof.property] = originalValue + delta;
-        const lossPlus = this._constraints.reduce((totalLoss, constraint) => totalLoss + Math.abs(constraintSignedLoss(constraint)), 0);
+        const lossPlus = this._constraints.reduce((totalLoss, constraint) => totalLoss + Math.abs(scaledConstraintSignedLoss(constraint)), 0);
         (dof.object as any)[dof.property] = originalValue - delta;
-        const lossMinus = this._constraints.reduce((totalLoss, constraint) => totalLoss + Math.abs(constraintSignedLoss(constraint)), 0);
+        const lossMinus = this._constraints.reduce((totalLoss, constraint) => totalLoss + Math.abs(scaledConstraintSignedLoss(constraint)), 0);
         (dof.object as any)[dof.property] = originalValue;
         return (lossPlus - lossMinus) / (2 * delta);
     }
 
     private getTotalLoss(): number {
         return this._constraints.reduce((totalLoss, constraint) => {
-            const constraintLoss = constraintSignedLoss(constraint);
+            const constraintLoss = scaledConstraintSignedLoss(constraint);
             console.log(`Constraint ${constraint.type} loss: ${constraintLoss}`);
             return totalLoss + Math.abs(constraintLoss);
         }, 0);
     }
 
-    private getLearningRate(iteration: number): number {
-        return 0.01;
+    private getLearningRate(_iteration: number): number {
+        // return 0.05;
+        const MAX_LEARNING_RATE = 0.05;
+        const MIN_LEARNING_RATE = 0.001;
+        const DECAY_RATE = 0.001;
+        return Math.max(MIN_LEARNING_RATE, MAX_LEARNING_RATE * Math.exp(-DECAY_RATE * _iteration));
+    }
+
+    private getTemperature(iteration: number): number {
+        // return 10;
+        const MAX_TEMPERATURE = 10;
+        const MIN_TEMPERATURE = 0.01;
+        const DECAY_RATE = 0.001;
+        return Math.max(MIN_TEMPERATURE, MAX_TEMPERATURE * Math.exp(-DECAY_RATE * iteration));
     }
 }
