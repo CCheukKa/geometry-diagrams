@@ -4,6 +4,7 @@ import { Triangle, Edge, Vertex } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { projectVertex } from "@lib/renderGeometry";
 import { Quat } from "ts-matrix";
+import { ConstraintSolver, ConstraintType } from "@lib/constraint";
 
 const HEIGHT = 500;
 const WIDTH = 500;
@@ -290,3 +291,26 @@ function getSvgContentBounds(): { x: number; y: number; width: number; height: n
         height: maxY - minY,
     };
 }
+
+/* -------------------------------------------------------------------------- */
+
+const solver = new ConstraintSolver();
+const A = solver.addPoint("A");
+const B = solver.addPoint("B");
+solver.addConstraint({
+    type: ConstraintType.Position,
+    point: A,
+    position: { x: 0, y: 0, z: 0 },
+});
+solver.addConstraint({
+    type: ConstraintType.Position,
+    point: B,
+    position: { x: null, y: 0, z: 0 },
+});
+solver.addConstraint({
+    type: ConstraintType.Length,
+    line: solver.addLine(A, B),
+    length: 10,
+});
+const solution = await solver.solve();
+console.log(solution);

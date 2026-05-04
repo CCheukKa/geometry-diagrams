@@ -45,8 +45,20 @@ export function barycentricCoordinates2D(vertex: Vector2D, triangle: [Vector2D, 
     return [weight1, weight2, weight3];
 }
 
+export function length3(vertex: Vector3D): number {
+    return Math.hypot(vertex.x, vertex.y, vertex.z);
+}
+
 export function dot3(vertex1: Vector3D, vertex2: Vector3D): number {
     return vertex1.x * vertex2.x + vertex1.y * vertex2.y + vertex1.z * vertex2.z;
+}
+
+export function cross3(vertex1: Vector3D, vertex2: Vector3D): Vector3D {
+    return {
+        x: vertex1.y * vertex2.z - vertex1.z * vertex2.y,
+        y: vertex1.z * vertex2.x - vertex1.x * vertex2.z,
+        z: vertex1.x * vertex2.y - vertex1.y * vertex2.x,
+    };
 }
 
 export function triangleNormal(vertex1: Vector3D, vertex2: Vector3D, vertex3: Vector3D): Vector3D {
@@ -69,7 +81,7 @@ export function triangleNormal(vertex1: Vector3D, vertex2: Vector3D, vertex3: Ve
 }
 
 export function normaliseVector(v: Vector3D): Vector3D {
-    const length = Math.hypot(v.x, v.y, v.z) || 1;
+    const length = length3(v) || 1;
     return { x: v.x / length, y: v.y / length, z: v.z / length };
 }
 
