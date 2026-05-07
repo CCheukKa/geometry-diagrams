@@ -1,10 +1,9 @@
-import { drawScene, RenderOccludedLinesOption } from "@lib/draw";
+import { drawScene, Edge, RenderOccludedLinesOption, Triangle, Vertex } from "@lib/draw";
 import { Camera, ProjectionType } from "@lib/camera";
-import { Triangle, Edge, Vertex } from "@lib/geometry";
 import { axisAngleToQuaternion, rotateVector } from "@lib/mathExtra";
 import { projectVertex } from "@lib/renderGeometry";
 import { Quat } from "ts-matrix";
-import { ConstraintSolver, ConstraintType } from "@lib/constraint";
+import { ConstraintType, GeometrySolver } from "@lib/geometry";
 
 const HEIGHT = 500;
 const WIDTH = 500;
@@ -294,7 +293,7 @@ function getSvgContentBounds(): { x: number; y: number; width: number; height: n
 
 /* -------------------------------------------------------------------------- */
 
-const solver = new ConstraintSolver();
+const solver = new GeometrySolver();
 const A = solver.addPoint("A");
 const B = solver.addPoint("B");
 solver.addConstraint({

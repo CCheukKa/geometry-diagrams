@@ -1,5 +1,5 @@
 import { Edge, Vertex } from "@lib/geometry.ts";
-import { ConstraintType } from "@lib/constraint";
+import { ConstraintType } from "@lib/constraints";
 
 export type ScenePoint = {
     id: string;
