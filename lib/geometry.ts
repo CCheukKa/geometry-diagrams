@@ -541,7 +541,7 @@ export class GeometrySolver {
         this._constraints.push(constraint);
     }
 
-    public async solve(): Promise<Solution> {
+    public solve(): Solution {
         this._status = SolverStatus.SOLVING;
 
         // reset all points to null
@@ -569,6 +569,10 @@ export class GeometrySolver {
             constraints: this._constraints,
             status: this._status,
         };
+    }
+
+    private buildEquations() {
+
     }
 }
 

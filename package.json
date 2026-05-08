@@ -1,15 +1,17 @@
 {
-  "name": "geometry-diagrams",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "ts-matrix": "^1.4.1"
-  }
+    "name": "geometry-diagrams",
+    "module": "index.ts",
+    "type": "module",
+    "private": true,
+    "devDependencies": {
+        "@types/bun": "latest"
+    },
+    "peerDependencies": {
+        "typescript": "^5"
+    },
+    "dependencies": {
+        "@types/decimal.js": "^7.4.3",
+        "decimal.js": "^10.6.0",
+        "ts-matrix": "^1.4.1"
+    }
 }

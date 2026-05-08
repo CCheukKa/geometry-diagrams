@@ -311,5 +311,5 @@ solver.addConstraint({
     line: solver.addLine(A, B),
     length: 10,
 });
-const solution = await solver.solve();
+const solution = solver.solve();
 console.log(solution);
