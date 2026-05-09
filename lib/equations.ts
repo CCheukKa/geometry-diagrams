@@ -186,7 +186,7 @@ export function formatToken(token: Token): string {
     }
 }
 
-function solveSystemOfEquations(equations: Equation[]): Record<string, Decimal> {
+export function solveSystemOfEquations(equations: Equation[]): Record<string, Decimal> {
     // simplify equations
     equations = equations.map(equation => ({
         id: equation.id,
@@ -589,22 +589,3 @@ function combineLikeTerms(token: OperatorToken): Token {
 
     return token;
 }
-
-/* -------------------------------------------------------------------------- */
-
-solveSystemOfEquations([
-    {
-        id: "eq1",
-        expression: TG.subtract(
-            TG.add(TG.variable("x"), TG.literal(2)),
-            TG.literal(5)
-        )
-    },
-    {
-        id: "eq2",
-        expression: TG.subtract(
-            TG.multiply(TG.variable("x"), TG.variable("y")),
-            TG.literal(6)
-        )
-    }
-]);
