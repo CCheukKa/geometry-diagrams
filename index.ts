@@ -299,7 +299,7 @@ const B = solver.addPoint("B");
 solver.addConstraint({
     type: ConstraintType.Position,
     point: A,
-    position: { x: 0, y: 0, z: 0 },
+    position: { x: 3, y: 4, z: 5 },
 });
 solver.addConstraint({
     type: ConstraintType.Position,

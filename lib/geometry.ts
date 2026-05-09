@@ -1,4 +1,5 @@
 import { cross3, dot3, length3, type Vector3D } from "@lib/mathExtra";
+import { formatToken, solveSystemOfEquations, TG, type Equation, type Token } from "@lib/equations";
 
 const TOLERANCE = 1e-6;
 const POINT_NAMES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -458,6 +459,7 @@ type Solution = {
     constraints: Constraint[];
     status: SolverStatus;
 }
+type Hash3 = { x: string, y: string, z: string };
 export class GeometrySolver {
     private _points: _Point[] = [];
     private _lines: _Line[] = []
@@ -544,21 +546,11 @@ export class GeometrySolver {
     public solve(): Solution {
         this._status = SolverStatus.SOLVING;
 
-        // reset all points to null
-        for (const point of this._points) {
-            point.x = null;
-            point.y = null;
-            point.z = null;
-        }
+        const equations = this.buildEquations();
+        console.log("Equations:", equations.map(eq => ({ id: eq.id, expression: formatToken(eq.expression) })));
 
-        // fixed positions
-        for (const constraint of this._constraints) {
-            if (constraint.type === ConstraintType.Position) {
-                constraint.point.x = constraint.position.x;
-                constraint.point.y = constraint.position.y;
-                constraint.point.z = constraint.position.z;
-            }
-        }
+        const solution = solveSystemOfEquations(equations);
+        console.log("Solution:", solution);
 
         this._status = this.constraints.every(constraintIsSatisfied) ? SolverStatus.SOLVED : SolverStatus.UNSOLVABLE;
         return {
@@ -571,8 +563,461 @@ export class GeometrySolver {
         };
     }
 
-    private buildEquations() {
+    private buildEquations(): Equation[] {
+        const equations: Equation[] = [];
 
+        const pointHash = new Map<Point, string>();
+        for (const point of this._points) {
+            pointHash.set(point, `${point.name}_${crypto.randomUUID()}`);
+        }
+        const pointVariableHash = new Map<Point, Hash3>();
+        for (const point of this._points) {
+            pointVariableHash.set(point, {
+                x: `x_${pointHash.get(point)}`,
+                y: `y_${pointHash.get(point)}`,
+                z: `z_${pointHash.get(point)}`,
+            });
+        }
+
+        const lineHash = new Map<Line, string>();
+        for (const line of this._lines) {
+            lineHash.set(line, `${line.name}_${crypto.randomUUID()}`);
+        }
+        const lineLengthVariableHash = new Map<Line, { length: string }>();
+        for (const line of this._lines) {
+            lineLengthVariableHash.set(line, {
+                length: `length_${lineHash.get(line)}`,
+            });
+        }
+        const lineVectorVariableHash = new Map<Line, Hash3>();
+        for (const line of this._lines) {
+            lineVectorVariableHash.set(line, {
+                x: `dx_${lineHash.get(line)}`,
+                y: `dy_${lineHash.get(line)}`,
+                z: `dz_${lineHash.get(line)}`,
+            });
+        }
+
+        const planeHash = new Map<Plane, string>();
+        for (const plane of this._planes) {
+            planeHash.set(plane, `${plane.name}_${crypto.randomUUID()}`);
+        }
+        const planeVariableHash = new Map<Plane, { normal: Hash3; distance: string }>();
+        for (const plane of this._planes) {
+            planeVariableHash.set(plane, {
+                normal: {
+                    x: `nx_${planeHash.get(plane)}`,
+                    y: `ny_${planeHash.get(plane)}`,
+                    z: `nz_${planeHash.get(plane)}`,
+                },
+                distance: `d_${planeHash.get(plane)}`,
+            });
+        }
+
+        const constraintHash = new Map<Constraint, string>();
+        for (const constraint of this._constraints) {
+            constraintHash.set(constraint, `c_${crypto.randomUUID()}`);
+        }
+
+        for (const line of this._lines) {
+            equations.push({
+                id: `${lineHash.get(line)!}_vector`,
+                expression: TG.equal(
+                    TG.variable(lineVectorVariableHash.get(line)!.x),
+                    TG.subtract(
+                        TG.variable(pointVariableHash.get(line.point2)!.x),
+                        TG.variable(pointVariableHash.get(line.point1)!.x),
+                    ),
+                ),
+            });
+            equations.push({
+                id: `${lineHash.get(line)!}_vector`,
+                expression: TG.equal(
+                    TG.variable(lineVectorVariableHash.get(line)!.y),
+                    TG.subtract(
+                        TG.variable(pointVariableHash.get(line.point2)!.y),
+                        TG.variable(pointVariableHash.get(line.point1)!.y),
+                    ),
+                ),
+            });
+            equations.push({
+                id: `${lineHash.get(line)!}_vector`,
+                expression: TG.equal(
+                    TG.variable(lineVectorVariableHash.get(line)!.z),
+                    TG.subtract(
+                        TG.variable(pointVariableHash.get(line.point2)!.z),
+                        TG.variable(pointVariableHash.get(line.point1)!.z),
+                    ),
+                ),
+            });
+            equations.push({
+                id: `${lineHash.get(line)!}_length`,
+                expression: TG.equal(
+                    TG.square(TG.variable(lineLengthVariableHash.get(line)!.length),),
+                    TG.add(
+                        TG.square(TG.variable(lineVectorVariableHash.get(line)!.x)),
+                        TG.square(TG.variable(lineVectorVariableHash.get(line)!.y)),
+                        TG.square(TG.variable(lineVectorVariableHash.get(line)!.z)),
+                    ),
+                ),
+            });
+        }
+
+        for (const constraint of this._constraints) {
+            switch (constraint.type) {
+                case ConstraintType.Position: {
+                    const { point, position } = constraint;
+                    if (position.x !== null) {
+                        equations.push({
+                            id: `${constraintHash.get(constraint)!}_x`,
+                            expression: TG.equal(
+                                TG.variable(pointVariableHash.get(point)!.x),
+                                TG.literal(position.x!),
+                            ),
+                        });
+                    }
+                    if (position.y !== null) {
+                        equations.push({
+                            id: `${constraintHash.get(constraint)!}_y`,
+                            expression: TG.equal(
+                                TG.variable(pointVariableHash.get(point)!.y),
+                                TG.literal(position.y!),
+                            ),
+                        });
+                    }
+                    if (position.z !== null) {
+                        equations.push({
+                            id: `${constraintHash.get(constraint)!}_z`,
+                            expression: TG.equal(
+                                TG.variable(pointVariableHash.get(point)!.z),
+                                TG.literal(position.z!),
+                            ),
+                        });
+                    }
+                    break;
+                }
+                case ConstraintType.Length: {
+                    const { line, length } = constraint;
+                    const lineVector = lineVectorVariableHash.get(line)!;
+                    equations.push({
+                        id: `${constraintHash.get(constraint)!}_length`,
+                        expression: TG.equal(
+                            TG.add(
+                                TG.square(TG.variable(lineVector.x)),
+                                TG.square(TG.variable(lineVector.y)),
+                                TG.square(TG.variable(lineVector.z))
+                            ),
+                            TG.literal(length * length),
+                        ),
+                    });
+                    break;
+                }
+                case ConstraintType.AngleBetweenLines: {
+                    const { point1, vertex, point2, angleRadians } = constraint;
+                    const line1Vector = {
+                        x: TG.subtract(TG.variable(pointVariableHash.get(point1)!.x), TG.variable(pointVariableHash.get(vertex)!.x)),
+                        y: TG.subtract(TG.variable(pointVariableHash.get(point1)!.y), TG.variable(pointVariableHash.get(vertex)!.y)),
+                        z: TG.subtract(TG.variable(pointVariableHash.get(point1)!.z), TG.variable(pointVariableHash.get(vertex)!.z)),
+                    };
+                    const line2Vector = {
+                        x: TG.subtract(TG.variable(pointVariableHash.get(point2)!.x), TG.variable(pointVariableHash.get(vertex)!.x)),
+                        y: TG.subtract(TG.variable(pointVariableHash.get(point2)!.y), TG.variable(pointVariableHash.get(vertex)!.y)),
+                        z: TG.subtract(TG.variable(pointVariableHash.get(point2)!.z), TG.variable(pointVariableHash.get(vertex)!.z)),
+                    };
+                    const dotProduct = TG.add(
+                        TG.square(line1Vector.x),
+                        TG.square(line1Vector.y),
+                        TG.square(line1Vector.z),
+                    );
+                    const magnitudeLine1 = TG.sqrt(
+                        TG.add(
+                            TG.square(line1Vector.x),
+                            TG.square(line1Vector.y),
+                            TG.square(line1Vector.z),
+                        ),
+                    );
+                    const magnitudeLine2 = TG.sqrt(
+                        TG.add(
+                            TG.square(line2Vector.x),
+                            TG.square(line2Vector.y),
+                            TG.square(line2Vector.z),
+                        ),
+                    );
+                    const actualAngle = TG.acos(
+                        TG.divide(
+                            dotProduct,
+                            TG.multiply(magnitudeLine1, magnitudeLine2),
+                        ),
+                    );
+                    equations.push({
+                        id: `${constraintHash.get(constraint)!}_angleBetweenLines`,
+                        expression: TG.equal(
+                            actualAngle,
+                            TG.literal(angleRadians),
+                        ),
+                    });
+                    break;
+                }
+                case ConstraintType.AngleBetweenLineAndPlane: {
+                    const { line, plane, angleRadians } = constraint;
+                    const lineVector = lineVectorVariableHash.get(line)!;
+                    const planeNormal = planeVariableHash.get(plane)!.normal;
+                    const dotProduct = TG.add(
+                        TG.square(TG.variable(lineVector.x)),
+                        TG.square(TG.variable(lineVector.y)),
+                        TG.square(TG.variable(lineVector.z)),
+                    );
+                    const magnitudeLine = TG.sqrt(
+                        TG.add(
+                            TG.square(TG.variable(lineVector.x)),
+                            TG.square(TG.variable(lineVector.y)),
+                            TG.square(TG.variable(lineVector.z)),
+                        ),
+                    );
+                    const magnitudePlaneNormal = TG.sqrt(
+                        TG.add(
+                            TG.square(TG.variable(planeNormal.x)),
+                            TG.square(TG.variable(planeNormal.y)),
+                            TG.square(TG.variable(planeNormal.z)),
+                        ),
+                    );
+                    const actualAngle = TG.asin(
+                        TG.divide(
+                            dotProduct,
+                            TG.multiply(magnitudeLine, magnitudePlaneNormal),
+                        ),
+                    );
+                    equations.push({
+                        id: `${constraintHash.get(constraint)!}_angleBetweenLineAndPlane`,
+                        expression: TG.equal(
+                            actualAngle,
+                            TG.literal(angleRadians),
+                        ),
+                    });
+                    break;
+                }
+                case ConstraintType.AngleBetweenPlanes: {
+                    const { plane1, plane2, angleRadians } = constraint;
+                    const plane1Normal = planeVariableHash.get(plane1)!.normal;
+                    const plane2Normal = planeVariableHash.get(plane2)!.normal;
+                    const dotProduct = TG.add(
+                        TG.square(TG.variable(plane1Normal.x)),
+                        TG.square(TG.variable(plane1Normal.y)),
+                        TG.square(TG.variable(plane1Normal.z)),
+                    );
+                    const magnitudePlane1Normal = TG.sqrt(
+                        TG.add(
+                            TG.square(TG.variable(plane1Normal.x)),
+                            TG.square(TG.variable(plane1Normal.y)),
+                            TG.square(TG.variable(plane1Normal.z)),
+                        ),
+                    );
+                    const magnitudePlane2Normal = TG.sqrt(
+                        TG.add(
+                            TG.square(TG.variable(plane2Normal.x)),
+                            TG.square(TG.variable(plane2Normal.y)),
+                            TG.square(TG.variable(plane2Normal.z)),
+                        ),
+                    );
+                    const actualAngle = TG.acos(
+                        TG.divide(
+                            dotProduct,
+                            TG.multiply(magnitudePlane1Normal, magnitudePlane2Normal),
+                        ),
+                    );
+                    equations.push({
+                        id: `${constraintHash.get(constraint)!}_angleBetweenPlanes`,
+                        expression: TG.equal(
+                            actualAngle,
+                            TG.literal(angleRadians),
+                        ),
+                    });
+                    break;
+                }
+                case ConstraintType.DistanceBetweenPointAndLine: {
+                    const { point, line, distance } = constraint;
+                    const lineVector = lineVectorVariableHash.get(line)!;
+                    const pointToLineStart = {
+                        x: TG.subtract(TG.variable(pointVariableHash.get(point)!.x), TG.variable(pointVariableHash.get(line.point1)!.x)),
+                        y: TG.subtract(TG.variable(pointVariableHash.get(point)!.y), TG.variable(pointVariableHash.get(line.point1)!.y)),
+                        z: TG.subtract(TG.variable(pointVariableHash.get(point)!.z), TG.variable(pointVariableHash.get(line.point1)!.z)),
+                    };
+                    const crossProduct = {
+                        x: TG.subtract(
+                            TG.multiply(pointToLineStart.y, TG.variable(lineVector.z)),
+                            TG.multiply(pointToLineStart.z, TG.variable(lineVector.y)),
+                        ),
+                        y: TG.subtract(
+                            TG.multiply(pointToLineStart.z, TG.variable(lineVector.x)),
+                            TG.multiply(pointToLineStart.x, TG.variable(lineVector.z)),
+                        ),
+                        z: TG.subtract(
+                            TG.multiply(pointToLineStart.x, TG.variable(lineVector.y)),
+                            TG.multiply(pointToLineStart.y, TG.variable(lineVector.x)),
+                        ),
+                    };
+                    const magnitudeCrossProduct = TG.sqrt(
+                        TG.add(
+                            TG.square(crossProduct.x),
+                            TG.square(crossProduct.y),
+                            TG.square(crossProduct.z),
+                        ),
+                    );
+                    const magnitudeLine = TG.sqrt(
+                        TG.add(
+                            TG.square(TG.variable(lineVector.x)),
+                            TG.square(TG.variable(lineVector.y)),
+                            TG.square(TG.variable(lineVector.z)),
+                        ),
+                    );
+                    const actualDistance = TG.divide(magnitudeCrossProduct, magnitudeLine);
+                    equations.push({
+                        id: `${constraintHash.get(constraint)!}_distanceBetweenPointAndLine`,
+                        expression: TG.equal(
+                            actualDistance,
+                            TG.literal(distance),
+                        ),
+                    });
+                    break;
+                }
+                case ConstraintType.DistanceBetweenPointAndPlane: {
+                    const { point, plane, distance } = constraint;
+                    const planeNormal = planeVariableHash.get(plane)!.normal;
+                    const planeDistance = planeVariableHash.get(plane)!.distance;
+                    const pointToPlane = TG.add(
+                        TG.multiply(TG.variable(planeNormal.x), TG.variable(pointVariableHash.get(point)!.x)),
+                        TG.multiply(TG.variable(planeNormal.y), TG.variable(pointVariableHash.get(point)!.y)),
+                        TG.multiply(TG.variable(planeNormal.z), TG.variable(pointVariableHash.get(point)!.z)),
+                        TG.multiply(TG.literal(-1), TG.variable(planeDistance)),
+                    );
+                    const magnitudePlaneNormal = TG.sqrt(
+                        TG.add(
+                            TG.square(TG.variable(planeNormal.x)),
+                            TG.square(TG.variable(planeNormal.y)),
+                            TG.square(TG.variable(planeNormal.z)),
+                        ),
+                    );
+                    const actualDistance = TG.divide(TG.abs(pointToPlane), magnitudePlaneNormal);
+                    equations.push({
+                        id: `${constraintHash.get(constraint)!}_distanceBetweenPointAndPlane`,
+                        expression: TG.equal(
+                            actualDistance,
+                            TG.literal(distance),
+                        ),
+                    });
+                    break;
+                }
+                case ConstraintType.PointOnLine: {
+                    const { point, line } = constraint;
+                    const lineVector = lineVectorVariableHash.get(line)!;
+                    const pointToLineStart = {
+                        x: TG.subtract(TG.variable(pointVariableHash.get(point)!.x), TG.variable(pointVariableHash.get(line.point1)!.x)),
+                        y: TG.subtract(TG.variable(pointVariableHash.get(point)!.y), TG.variable(pointVariableHash.get(line.point1)!.y)),
+                        z: TG.subtract(TG.variable(pointVariableHash.get(point)!.z), TG.variable(pointVariableHash.get(line.point1)!.z)),
+                    };
+                    const crossProduct = {
+                        x: TG.subtract(
+                            TG.multiply(pointToLineStart.y, TG.variable(lineVector.z)),
+                            TG.multiply(pointToLineStart.z, TG.variable(lineVector.y)),
+                        ),
+                        y: TG.subtract(
+                            TG.multiply(pointToLineStart.z, TG.variable(lineVector.x)),
+                            TG.multiply(pointToLineStart.x, TG.variable(lineVector.z)),
+                        ),
+                        z: TG.subtract(
+                            TG.multiply(pointToLineStart.x, TG.variable(lineVector.y)),
+                            TG.multiply(pointToLineStart.y, TG.variable(lineVector.x)),
+                        ),
+                    };
+                    const magnitudeCrossProduct = TG.sqrt(
+                        TG.add(
+                            TG.square(crossProduct.x),
+                            TG.square(crossProduct.y),
+                            TG.square(crossProduct.z),
+                        ),
+                    );
+                    equations.push({
+                        id: `${constraintHash.get(constraint)!}_pointOnLine`,
+                        expression: TG.equal(
+                            magnitudeCrossProduct,
+                            TG.literal(0),
+                        ),
+                    });
+                    break;
+                }
+                // TODO:
+                // case ConstraintType.PointOnLineSegment: {
+                //     const { point, line } = constraint;
+                //     const lineVector = lineVectorVariableHash.get(line)!;
+                //     const pointToLineStart = {
+                //         x: TG.subtract(TG.variable(pointVariableHash.get(point)!.x), TG.variable(pointVariableHash.get(line.point1)!.x)),
+                //         y: TG.subtract(TG.variable(pointVariableHash.get(point)!.y), TG.variable(pointVariableHash.get(line.point1)!.y)),
+                //         z: TG.subtract(TG.variable(pointVariableHash.get(point)!.z), TG.variable(pointVariableHash.get(line.point1)!.z)),
+                //     };
+                //     const crossProduct = {
+                //         x: TG.subtract(
+                //             TG.multiply(pointToLineStart.y, TG.variable(lineVector.z)),
+                //             TG.multiply(pointToLineStart.z, TG.variable(lineVector.y)),
+                //         ),
+                //         y: TG.subtract(
+                //             TG.multiply(pointToLineStart.z, TG.variable(lineVector.x)),
+                //             TG.multiply(pointToLineStart.x, TG.variable(lineVector.z)),
+                //         ),
+                //         z: TG.subtract(
+                //             TG.multiply(pointToLineStart.x, TG.variable(lineVector.y)),
+                //             TG.multiply(pointToLineStart.y, TG.variable(lineVector.x)),
+                //         ),
+                //     };
+                //     const magnitudeCrossProduct = TG.sqrt(
+                //         TG.add(
+                //             TG.square(crossProduct.x),
+                //             TG.square(crossProduct.y),
+                //             TG.square(crossProduct.z),
+                //         ),
+                //     );
+                //     const dotProduct = TG.add(
+                //         TG.multiply(pointToLineStart.x, TG.variable(lineVector.x)),
+                //         TG.multiply(pointToLineStart.y, TG.variable(lineVector.y)),
+                //         TG.multiply(pointToLineStart.z, TG.variable(lineVector.z)),
+                //     );
+                //     const magnitudeLineVector = TG.sqrt(
+                //         TG.add(
+                //             TG.square(TG.variable(lineVector.x)),
+                //             TG.square(TG.variable(lineVector.y)),
+                //             TG.square(TG.variable(lineVector.z)),
+                //         ),
+                //     );
+                //     equations.push({
+                //         id: `${constraintHash.get(constraint)!}_pointOnLineSegment_cross`,
+                //         expression: TG.equal(
+                //             magnitudeCrossProduct,
+                //             TG.literal(0),
+                //         ),
+                //     });
+                //     equations.push({
+                //         id: `${constraintHash.get(constraint)!}_pointOnLineSegment_dot`,
+                //         expression: TG.geq(
+                //             dotProduct,
+                //             TG.literal(0),
+                //         ),
+                //     });
+                //     equations.push({
+                //         id: `${constraintHash.get(constraint)!}_pointOnLineSegment_dot2`,
+                //         expression: TG.leq(
+                //             dotProduct,
+                //             TG.multiply(magnitudeLineVector, magnitudeLineVector),
+                //         ),
+                //     });
+                //     break;
+                // }
+                default: {
+                    // @ts-ignore
+                    throw new Error(`Constraint type ${constraint.type} not implemented yet`);
+                }
+            }
+        }
+
+        return equations;
     }
 }
 
