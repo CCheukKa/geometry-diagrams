@@ -31,28 +31,11 @@ describe("equation tokens", () => {
         expect(multiply.operator).toBe("multiply" as typeof multiply.operator);
         expect(multiply.operands).toHaveLength(2);
 
-        const subtract = TG.subtract(literal, variable);
-        expect(subtract.type).toBe("operator" as typeof subtract.type);
-        expect(subtract.operator).toBe("subtract" as typeof subtract.operator);
-        expect(subtract.left).toBe(literal);
-        expect(subtract.right).toBe(variable);
-
-        const divide = TG.divide(literal, variable);
-        expect(divide.type).toBe("operator" as typeof divide.type);
-        expect(divide.operator).toBe("divide" as typeof divide.operator);
-        expect(divide.left).toBe(literal);
-        expect(divide.right).toBe(variable);
-
         const power = TG.power(variable, TG.literal(2), TG.literal(3));
         expect(power.type).toBe("operator" as typeof power.type);
         expect(power.operator).toBe("power" as typeof power.operator);
         expect(power.base).toBe(variable);
         expect(power.exponents).toHaveLength(2);
-
-        const negate = TG.negate(variable);
-        expect(negate.type).toBe("operator" as typeof negate.type);
-        expect(negate.operator).toBe("negate" as typeof negate.operator);
-        expect(negate.operand).toBe(variable);
     });
 });
 

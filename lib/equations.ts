@@ -8,11 +8,9 @@ enum TokenType {
 
 enum Operator {
     ADD = 'add',
-    SUBTRACT = 'subtract',
     MULTIPLY = 'multiply',
-    DIVIDE = 'divide',
     POWER = 'power',
-    NEGATE = 'negate',
+    ABSOLUTE_VALUE = 'absolute_value',
     SINE = 'sine',
     COSINE = 'cosine',
     TANGENT = 'tangent',
@@ -41,20 +39,17 @@ type OperatorToken = {
     base: Token,
     exponents: Token[],
 } | {
-    operator: Operator.SUBTRACT | Operator.DIVIDE,
-    left: Token,
-    right: Token,
-} | {
-    operator: Operator.NEGATE | Operator.SINE | Operator.COSINE | Operator.TANGENT | Operator.ARCSINE | Operator.ARCCOSINE | Operator.ARCTANGENT,
+    operator: Operator.ABSOLUTE_VALUE | Operator.SINE | Operator.COSINE | Operator.TANGENT | Operator.ARCSINE | Operator.ARCCOSINE | Operator.ARCTANGENT,
     operand: Token,
 });
 
 export type Token = LiteralToken | VariableToken | OperatorToken;
 
-type Equation = { //! always = 0
+export type Equation = { //! always = 0
     id: string,
     expression: Token,
 }
+// TODO: Inequalities
 
 export class TG {
     public static literal(value: Decimal.Value): LiteralToken {
@@ -76,13 +71,11 @@ export class TG {
             operands,
         };
     }
-    public static subtract(left: Token, right: Token): Token & { type: TokenType.OPERATOR, operator: Operator.SUBTRACT } {
-        return {
-            type: TokenType.OPERATOR,
-            operator: Operator.SUBTRACT,
-            left,
-            right,
-        };
+    public static subtract(left: Token, right: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ADD } {
+        return this.add(left, this.multiply(right, TG.literal(-1)));
+    }
+    public static equal(left: Token, right: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ADD } {
+        return this.subtract(left, right);
     }
     public static multiply(...operands: Token[]): Token & { type: TokenType.OPERATOR, operator: Operator.MULTIPLY } {
         return {
@@ -91,13 +84,8 @@ export class TG {
             operands,
         };
     }
-    public static divide(left: Token, right: Token): Token & { type: TokenType.OPERATOR, operator: Operator.DIVIDE } {
-        return {
-            type: TokenType.OPERATOR,
-            operator: Operator.DIVIDE,
-            left,
-            right,
-        };
+    public static divide(left: Token, right: Token): Token & { type: TokenType.OPERATOR, operator: Operator.MULTIPLY } {
+        return this.multiply(left, this.power(right, TG.literal(-1)));
     }
     public static power(base: Token, ...exponents: Token[]): Token & { type: TokenType.OPERATOR, operator: Operator.POWER } {
         return {
@@ -107,49 +95,64 @@ export class TG {
             exponents,
         };
     }
-    public static negate(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.NEGATE } {
+    public static square(base: Token): Token & { type: TokenType.OPERATOR, operator: Operator.POWER } {
+        return this.power(base, TG.literal(2));
+    }
+    public static cube(base: Token): Token & { type: TokenType.OPERATOR, operator: Operator.POWER } {
+        return this.power(base, TG.literal(3));
+    }
+    public static sqrt(base: Token): Token & { type: TokenType.OPERATOR, operator: Operator.POWER } {
+        return this.power(base, TG.literal(0.5));
+    }
+    public static cbrt(base: Token): Token & { type: TokenType.OPERATOR, operator: Operator.POWER } {
+        return this.power(base, TG.literal(1 / 3));
+    }
+    public static negate(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.MULTIPLY } {
+        return this.multiply(operand, TG.literal(-1));
+    }
+    public static abs(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ABSOLUTE_VALUE } {
         return {
             type: TokenType.OPERATOR,
-            operator: Operator.NEGATE,
+            operator: Operator.ABSOLUTE_VALUE,
             operand,
         };
     }
-    public static sine(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.SINE } {
+    public static sin(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.SINE } {
         return {
             type: TokenType.OPERATOR,
             operator: Operator.SINE,
             operand,
         };
     }
-    public static cosine(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.COSINE } {
+    public static cos(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.COSINE } {
         return {
             type: TokenType.OPERATOR,
             operator: Operator.COSINE,
             operand,
         };
     }
-    public static tangent(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.TANGENT } {
+    public static tan(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.TANGENT } {
         return {
             type: TokenType.OPERATOR,
             operator: Operator.TANGENT,
             operand,
         };
     }
-    public static arcsine(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ARCSINE } {
+    public static asin(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ARCSINE } {
         return {
             type: TokenType.OPERATOR,
             operator: Operator.ARCSINE,
             operand,
         };
     }
-    public static arccosine(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ARCCOSINE } {
+    public static acos(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ARCCOSINE } {
         return {
             type: TokenType.OPERATOR,
             operator: Operator.ARCCOSINE,
             operand,
         };
     }
-    public static arctangent(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ARCTANGENT } {
+    public static atan(operand: Token): Token & { type: TokenType.OPERATOR, operator: Operator.ARCTANGENT } {
         return {
             type: TokenType.OPERATOR,
             operator: Operator.ARCTANGENT,
@@ -165,11 +168,8 @@ export function formatToken(token: Token): string {
         case TokenType.OPERATOR: {
             switch (token.operator) {
                 case Operator.ADD: return `(${token.operands.map(formatToken).join(' + ')})`;
-                case Operator.SUBTRACT: return `(${formatToken(token.left)} - ${formatToken(token.right)})`;
                 case Operator.MULTIPLY: return `(${token.operands.map(formatToken).join(' * ')})`;
-                case Operator.DIVIDE: return `(${formatToken(token.left)} / ${formatToken(token.right)})`;
                 case Operator.POWER: return `(${formatToken(token.base)} ^ ${token.exponents.map(formatToken).join(' ^ ')})`;
-                case Operator.NEGATE: return `(-${formatToken(token.operand)})`;
                 case Operator.SINE: return `sin(${formatToken(token.operand)})`;
                 case Operator.COSINE: return `cos(${formatToken(token.operand)})`;
                 case Operator.TANGENT: return `tan(${formatToken(token.operand)})`;
@@ -216,12 +216,8 @@ function enumerateVariables(token: Token): string[] {
                 variableIDs.push(...enumerateVariables(operand));
             }
         }
-        if (token.operator === Operator.NEGATE || token.operator === Operator.SINE || token.operator === Operator.COSINE || token.operator === Operator.TANGENT || token.operator === Operator.ARCSINE || token.operator === Operator.ARCCOSINE || token.operator === Operator.ARCTANGENT) {
+        if (token.operator === Operator.SINE || token.operator === Operator.COSINE || token.operator === Operator.TANGENT || token.operator === Operator.ARCSINE || token.operator === Operator.ARCCOSINE || token.operator === Operator.ARCTANGENT) {
             variableIDs.push(...enumerateVariables(token.operand));
-        }
-        if (token.operator === Operator.SUBTRACT || token.operator === Operator.DIVIDE) {
-            variableIDs.push(...enumerateVariables(token.left));
-            variableIDs.push(...enumerateVariables(token.right));
         }
         if (token.operator === Operator.POWER) {
             variableIDs.push(...enumerateVariables(token.base));
@@ -254,11 +250,6 @@ export function deepEquals(token1: Token, token2: Token): boolean {
             case Operator.POWER:
                 // @ts-ignore
                 return deepEquals(token1.base, token2.base) && tokensMatch(token1.exponents, token2.exponents);
-            case Operator.SUBTRACT:
-            case Operator.DIVIDE:
-                // @ts-ignore
-                return deepEquals(token1.left, token2.left) && deepEquals(token1.right, token2.right);
-            case Operator.NEGATE:
             case Operator.SINE:
             case Operator.COSINE:
             case Operator.TANGENT:
@@ -296,10 +287,7 @@ function tokenKey(token: Token): string {
                     return `${token.operator}:[${token.operands.map(tokenKey).sort().join("|")}]`;
                 case Operator.POWER:
                     return `${token.operator}:${tokenKey(token.base)}:[${token.exponents.map(tokenKey).sort().join("|")}]`;
-                case Operator.SUBTRACT:
-                case Operator.DIVIDE:
-                    return `${token.operator}:${tokenKey(token.left)}:${tokenKey(token.right)}`;
-                case Operator.NEGATE:
+                case Operator.ABSOLUTE_VALUE:
                 case Operator.SINE:
                 case Operator.COSINE:
                 case Operator.TANGENT:
@@ -316,50 +304,12 @@ export function simplifyToken(rawToken: Token): Token {
     if (isLiteral(rawToken) || isVariable(rawToken)) { return rawToken; }
     let token: Token = rawToken;
 
-    token = collapseHighLevelOperators(token);
-
     token = evaluateLiterals(token);
     if (isLiteral(token) || isVariable(token)) { return token; }
 
     token = combineLikeTerms(token);
 
     return token;
-}
-
-function collapseHighLevelOperators(token: OperatorToken): OperatorToken {
-    // a - b => a + b * -1
-    // a / b => a * b ^ -1
-    // -a => a * -1
-
-    switch (token.operator) {
-        case Operator.SUBTRACT: {
-            return TG.add(
-                simplifyToken(token.left),
-                TG.multiply(
-                    simplifyToken(token.right),
-                    TG.literal(-1),
-                ),
-            );
-        }
-        case Operator.DIVIDE: {
-            return TG.multiply(
-                simplifyToken(token.left),
-                TG.power(
-                    simplifyToken(token.right),
-                    TG.literal(-1)
-                )
-            );
-        }
-        case Operator.NEGATE: {
-            {
-                return TG.multiply(
-                    simplifyToken(token.operand),
-                    TG.literal(-1),
-                );
-            }
-        }
-        default: { return token; }
-    }
 }
 
 function evaluateLiterals(token: OperatorToken): Token {
