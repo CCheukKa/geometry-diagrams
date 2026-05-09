@@ -49,7 +49,7 @@ type OperatorToken = {
     operand: Token,
 });
 
-type Token = LiteralToken | VariableToken | OperatorToken;
+export type Token = LiteralToken | VariableToken | OperatorToken;
 
 type Equation = { //! always = 0
     id: string,
@@ -155,6 +155,34 @@ export class TG {
             operator: Operator.ARCTANGENT,
             operand,
         };
+    }
+}
+
+export function formatToken(token: Token): string {
+    switch (token.type) {
+        case TokenType.LITERAL: return token.value.toString();
+        case TokenType.VARIABLE: return token.id;
+        case TokenType.OPERATOR: {
+            switch (token.operator) {
+                case Operator.ADD: return `(${token.operands.map(formatToken).join(' + ')})`;
+                case Operator.SUBTRACT: return `(${formatToken(token.left)} - ${formatToken(token.right)})`;
+                case Operator.MULTIPLY: return `(${token.operands.map(formatToken).join(' * ')})`;
+                case Operator.DIVIDE: return `(${formatToken(token.left)} / ${formatToken(token.right)})`;
+                case Operator.POWER: return `(${formatToken(token.base)} ^ ${token.exponents.map(formatToken).join(' ^ ')})`;
+                case Operator.NEGATE: return `(-${formatToken(token.operand)})`;
+                case Operator.SINE: return `sin(${formatToken(token.operand)})`;
+                case Operator.COSINE: return `cos(${formatToken(token.operand)})`;
+                case Operator.TANGENT: return `tan(${formatToken(token.operand)})`;
+                case Operator.ARCSINE: return `arcsin(${formatToken(token.operand)})`;
+                case Operator.ARCCOSINE: return `arccos(${formatToken(token.operand)})`;
+                case Operator.ARCTANGENT: return `arctan(${formatToken(token.operand)})`;
+                default: {
+                    // @ts-expect-error
+                    const _exhaustiveCheck: never = token.operator;
+                    return _exhaustiveCheck;
+                }
+            }
+        }
     }
 }
 
