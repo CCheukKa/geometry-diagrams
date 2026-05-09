@@ -311,135 +311,283 @@ function tokenKey(token: Token): string {
         }
     }
 }
-    if (isLiteral(token) || isVariable(token)) { return token; }
-    let t = token;
 
-    // ! collapse high level operators
+export function simplifyToken(rawToken: Token): Token {
+    if (isLiteral(rawToken) || isVariable(rawToken)) { return rawToken; }
+    let token: Token = rawToken;
+
+    token = collapseHighLevelOperators(token);
+
+    token = evaluateLiterals(token);
+    if (isLiteral(token) || isVariable(token)) { return token; }
+
+    token = combineLikeTerms(token);
+
+    return token;
+}
+
+function collapseHighLevelOperators(token: OperatorToken): OperatorToken {
     // a - b => a + b * -1
     // a / b => a * b ^ -1
     // -a => a * -1
-    if (t.operator === Operator.SUBTRACT) {
-        t = TG.add(
-            simplifyToken(t.left),
-            TG.multiply(
-                simplifyToken(t.right),
-                TG.literal(-1),
-            ),
-        );
-    }
-    if (t.operator === Operator.DIVIDE) {
-        t = TG.multiply(
-            simplifyToken(t.left),
-            TG.power(
-                simplifyToken(t.right),
-                TG.literal(-1)
-            )
-        );
-    }
-    if (t.operator === Operator.NEGATE) {
-        t = TG.multiply(
-            simplifyToken(t.operand),
-            TG.literal(-1),
-        );
-    }
 
-    // ! literal evaluation
+    switch (token.operator) {
+        case Operator.SUBTRACT: {
+            return TG.add(
+                simplifyToken(token.left),
+                TG.multiply(
+                    simplifyToken(token.right),
+                    TG.literal(-1),
+                ),
+            );
+        }
+        case Operator.DIVIDE: {
+            return TG.multiply(
+                simplifyToken(token.left),
+                TG.power(
+                    simplifyToken(token.right),
+                    TG.literal(-1)
+                )
+            );
+        }
+        case Operator.NEGATE: {
+            {
+                return TG.multiply(
+                    simplifyToken(token.operand),
+                    TG.literal(-1),
+                );
+            }
+        }
+        default: { return token; }
+    }
+}
+
+function evaluateLiterals(token: OperatorToken): Token {
     // 2 + 3 + 4 + x => 9 + x
     // 2 * 3 * 4 * x => 24 * x
     // 2 ^ 3 ^ 4 ^ x => 64 ^ x
     // x ^ 2 ^ 3 ^ 4 => x ^ 64
-    if (t.operator === Operator.ADD) {
-        t.operands = t.operands.map(simplifyToken);
-        const literals = t.operands.filter(operand => isLiteral(operand));
-        const nonLiterals = t.operands.filter(operand => !isLiteral(operand));
-        const literalSum = literals.reduce((sum, operand) => sum.plus(operand.value), new Decimal(0));
 
-        if (nonLiterals.length === 0) { return TG.literal(literalSum); }
-        if (literalSum.isZero()) {
-            if (nonLiterals.length === 1) { return nonLiterals[0]!; }
-            return TG.add(...nonLiterals);
+    switch (token.operator) {
+        case Operator.ADD: {
+            token.operands = token.operands.map(simplifyToken);
+            const literals = token.operands.filter(operand => isLiteral(operand));
+            const nonLiterals = token.operands.filter(operand => !isLiteral(operand));
+            const literalSum = literals.reduce((sum, operand) => sum.plus(operand.value), new Decimal(0));
+
+            if (nonLiterals.length === 0) { return TG.literal(literalSum); }
+            if (literalSum.isZero()) {
+                if (nonLiterals.length === 1) { return nonLiterals[0]!; }
+                return TG.add(...nonLiterals);
+            }
+            return TG.add(
+                ...nonLiterals,
+                TG.literal(literalSum),
+            );
         }
-        return TG.add(
-            ...nonLiterals,
-            TG.literal(literalSum),
-        );
-    }
-    if (t.operator === Operator.MULTIPLY) {
-        t.operands = t.operands.map(simplifyToken);
-        const literals = t.operands.filter(operand => isLiteral(operand));
-        const nonLiterals = t.operands.filter(operand => !isLiteral(operand));
-        const literalProduct = literals.reduce((product, operand) => product.times(operand.value), new Decimal(1));
+        case Operator.MULTIPLY: {
+            token.operands = token.operands.map(simplifyToken);
+            const literals = token.operands.filter(operand => isLiteral(operand));
+            const nonLiterals = token.operands.filter(operand => !isLiteral(operand));
+            const literalProduct = literals.reduce((product, operand) => product.times(operand.value), new Decimal(1));
 
-        if (nonLiterals.length === 0) { return TG.literal(literalProduct); }
-        if (literalProduct.isZero()) { return TG.literal(0); }
-        if (literalProduct.eq(1)) {
-            if (nonLiterals.length === 1) { return nonLiterals[0]!; }
-            return TG.multiply(...nonLiterals);
+            if (nonLiterals.length === 0) { return TG.literal(literalProduct); }
+            if (literalProduct.isZero()) { return TG.literal(0); }
+            if (literalProduct.eq(1)) {
+                if (nonLiterals.length === 1) { return nonLiterals[0]!; }
+                return TG.multiply(...nonLiterals);
+            }
+            return TG.multiply(
+                ...nonLiterals,
+                TG.literal(literalProduct),
+            );
         }
-        return TG.multiply(
-            ...nonLiterals,
-            TG.literal(literalProduct),
-        );
-    }
-    if (t.operator === Operator.POWER) {
-        t.base = simplifyToken(t.base);
-        t.exponents = t.exponents.map(simplifyToken);
-        const exponent = simplifyToken(TG.multiply(...t.exponents));
+        case Operator.POWER: {
+            token.base = simplifyToken(token.base);
+            token.exponents = token.exponents.map(simplifyToken);
+            const exponent = simplifyToken(TG.multiply(...token.exponents));
 
-        let literalExponent: LiteralToken = TG.literal(1);
-        let nonLiteralExponents: (VariableToken | OperatorToken)[] = [];
-        if (isLiteral(exponent)) {
-            literalExponent = exponent;
-        } else if (isVariable(exponent)) {
-            nonLiteralExponents = [exponent];
-        } else if (isOperator(exponent) && exponent.operator === Operator.MULTIPLY) {
-            for (const operand of exponent.operands) {
-                if (isLiteral(operand)) {
-                    throw new Error("Unexpected multiple literal exponents after simplification. This likely indicates a bug in the simplification logic.");
-                } else {
-                    nonLiteralExponents.push(operand);
+            let literalExponent: LiteralToken = TG.literal(1);
+            let nonLiteralExponents: (VariableToken | OperatorToken)[] = [];
+            if (isLiteral(exponent)) {
+                literalExponent = exponent;
+            } else if (isVariable(exponent)) {
+                nonLiteralExponents = [exponent];
+            } else if (isOperator(exponent) && exponent.operator === Operator.MULTIPLY) {
+                for (const operand of exponent.operands) {
+                    if (isLiteral(operand)) {
+                        throw new Error("Unexpected multiple literal exponents after simplification. This likely indicates a bug in the simplification logic.");
+                    } else {
+                        nonLiteralExponents.push(operand);
+                    }
+                }
+            } else {
+                nonLiteralExponents = [exponent];
+            }
+
+            if (literalExponent.value.eq(0)) {
+                if (nonLiteralExponents.length === 0) { return token.base; }
+                if (nonLiteralExponents.length > 0) { return TG.power(token.base, ...nonLiteralExponents); }
+            }
+            if (literalExponent.value.eq(1)) {
+                const literalValue = literalExponent.value;
+                if (literalValue.isZero()) { return TG.literal(1); }
+                if (literalValue.eq(1)) {
+                    if (nonLiteralExponents.length === 0) { return token.base; }
+                    return TG.power(token.base, ...nonLiteralExponents);
                 }
             }
-        } else {
-            nonLiteralExponents = [exponent];
-        }
-
-        if (literalExponent.value.eq(0)) {
-            if (nonLiteralExponents.length === 0) { return t.base; }
-            if (nonLiteralExponents.length > 0) { return TG.power(t.base, ...nonLiteralExponents); }
-        }
-        if (literalExponent.value.eq(1)) {
-            const literalValue = literalExponent.value;
-            if (literalValue.isZero()) { return TG.literal(1); }
-            if (literalValue.eq(1)) {
-                if (nonLiteralExponents.length === 0) { return t.base; }
-                return TG.power(t.base, ...nonLiteralExponents);
+            if (isLiteral(token.base)) {
+                const baseValue = token.base.value;
+                if (baseValue.isZero()) {
+                    if (literalExponent.value.isPositive()) { return TG.literal(0); }
+                    if (literalExponent.value.isNegative()) { throw new Error("Zero cannot be raised to a negative power."); }
+                }
+                if (baseValue.eq(1)) { return TG.literal(1); }
+                return TG.literal(baseValue.pow(literalExponent.value));
             }
+            if (nonLiteralExponents.length === 0) { return TG.power(token.base, literalExponent); }
+            return TG.power(
+                token.base,
+                literalExponent,
+                ...nonLiteralExponents,
+            );
         }
-        if (isLiteral(t.base)) {
-            const baseValue = t.base.value;
-            if (baseValue.isZero()) {
-                if (literalExponent.value.isPositive()) { return TG.literal(0); }
-                if (literalExponent.value.isNegative()) { throw new Error("Zero cannot be raised to a negative power."); }
-            }
-            if (baseValue.eq(1)) { return TG.literal(1); }
-            return TG.literal(baseValue.pow(literalExponent.value));
-        }
-        if (nonLiteralExponents.length === 0) { return TG.power(t.base, literalExponent); }
-        return TG.power(
-            t.base,
-            literalExponent,
-            ...nonLiteralExponents,
-        );
+        default: { return token; }
     }
+}
 
-    // ! combine like terms
+function combineLikeTerms(token: OperatorToken): Token {
     // x + x + x => 3 * x
     // x * x * x => x ^ 3
     // a * b + a * c => a * (b + c)
     // a ^ b * a ^ c => a ^ (b + c)
 
-    return t;
+    if (token.operator === Operator.ADD) {
+        const termMap: Record<string, { coefficient: Decimal, term: Token }> = {};
+        for (const operand of token.operands) {
+            if (isLiteral(operand)) {
+                const key = '1';
+                if (!termMap[key]) {
+                    termMap[key] = { coefficient: operand.value, term: TG.literal(1) };
+                } else {
+                    termMap[key].coefficient = termMap[key].coefficient.plus(operand.value);
+                }
+            } else if (isVariable(operand)) {
+                const key = operand.id;
+                if (!termMap[key]) {
+                    termMap[key] = { coefficient: new Decimal(1), term: operand };
+                } else {
+                    termMap[key].coefficient = termMap[key].coefficient.plus(1);
+                }
+            } else if (isOperator(operand) && operand.operator === Operator.MULTIPLY) {
+                const literalFactors = operand.operands.filter(isLiteral);
+                const nonLiteralFactors = operand.operands.filter(op => !isLiteral(op));
+                if (literalFactors.length === 0) { continue; }
+                const coefficient = literalFactors.reduce((product, operand) => product.times(operand.value), new Decimal(1));
+                const key = nonLiteralFactors.map(factor => JSON.stringify(factor)).sort().join('*');
+                if (!termMap[key]) {
+                    termMap[key] = { coefficient, term: nonLiteralFactors.length === 1 ? nonLiteralFactors[0]! : TG.multiply(...nonLiteralFactors) };
+                } else {
+                    termMap[key].coefficient = termMap[key].coefficient.plus(coefficient);
+                }
+            }
+        }
+        token.operands = Object.values(termMap).map(({ coefficient, term }) => {
+            if (coefficient.isZero()) { return null; }
+            if (term.type === TokenType.LITERAL && term.value.equals(1)) {
+                return TG.literal(coefficient);
+            }
+            if (term.type === TokenType.LITERAL) {
+                return TG.multiply(
+                    TG.literal(coefficient.times(term.value)),
+                    TG.literal(1),
+                );
+            }
+            if (coefficient.equals(1)) {
+                return term;
+            }
+            return TG.multiply(
+                TG.literal(coefficient),
+                term,
+            );
+        }).filter((operand): operand is Token => operand !== null);
+        if (token.operands.length === 0) { return TG.literal(0); }
+        if (token.operands.length === 1) { return token.operands[0]!; }
+        return token;
+    }
+    if (token.operator === Operator.MULTIPLY) {
+        let literalProduct = new Decimal(1);
+        const factorMap: Record<string, { exponent: Decimal, term: Token }> = {};
+        for (const operand of token.operands) {
+            if (isLiteral(operand)) {
+                literalProduct = literalProduct.times(operand.value);
+            } else if (isVariable(operand)) {
+                const key = tokenKey(operand);
+                if (!factorMap[key]) {
+                    factorMap[key] = { exponent: new Decimal(1), term: operand };
+                } else {
+                    factorMap[key].exponent = factorMap[key].exponent.plus(1);
+                }
+            } else if (isOperator(operand) && operand.operator === Operator.POWER) {
+                const base = simplifyToken(operand.base);
+                const exponent = simplifyToken(TG.multiply(...operand.exponents));
+                if (isLiteral(exponent) && exponent.value.isZero()) {
+                    continue;
+                }
+
+                const key = tokenKey(base);
+                if (isLiteral(exponent)) {
+                    if (!factorMap[key]) {
+                        factorMap[key] = { exponent: new Decimal(exponent.value), term: base };
+                    } else {
+                        factorMap[key].exponent = factorMap[key].exponent.plus(exponent.value);
+                    }
+                } else {
+                    if (!factorMap[key]) {
+                        factorMap[key] = { exponent: new Decimal(1), term: TG.power(base, exponent) };
+                    } else {
+                        factorMap[key].exponent = factorMap[key].exponent.plus(1);
+                    }
+                }
+            } else {
+                const key = tokenKey(operand);
+                if (!factorMap[key]) {
+                    factorMap[key] = { exponent: new Decimal(1), term: operand };
+                } else {
+                    factorMap[key].exponent = factorMap[key].exponent.plus(1);
+                }
+            }
+        }
+
+        const factors = Object.values(factorMap).map(({ exponent, term }) => {
+            if (exponent.isZero()) {
+                return null;
+            }
+            if (exponent.eq(1)) {
+                return term;
+            }
+            return TG.power(term, TG.literal(exponent));
+        }).filter((factor): factor is Token => factor !== null);
+
+        if (literalProduct.isZero()) {
+            return TG.literal(0);
+        }
+
+        if (!literalProduct.eq(1)) {
+            factors.unshift(TG.literal(literalProduct));
+        }
+
+        if (factors.length === 0) {
+            return TG.literal(1);
+        }
+        if (factors.length === 1) {
+            return factors[0]!;
+        }
+        return TG.multiply(...factors);
+    }
+
+    return token;
 }
 
 /* -------------------------------------------------------------------------- */
