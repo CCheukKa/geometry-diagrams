@@ -245,13 +245,44 @@ export function deepEquals(token1: Token, token2: Token): boolean {
     /* -------------------------------------------------------------------------- */
     function tokensMatch(tokens1: Token[], tokens2: Token[]): boolean {
         if (tokens1.length !== tokens2.length) { return false; }
-        const sortedTokens1 = [...tokens1].sort();
-        const sortedTokens2 = [...tokens2].sort();
+        const sortedTokens1 = [...tokens1].sort(compareTokens);
+        const sortedTokens2 = [...tokens2].sort(compareTokens);
         return sortedTokens1.every((token, index) => deepEquals(token, sortedTokens2[index]!));
+        // 
+        function compareTokens(token1: Token, token2: Token): number {
+            return tokenKey(token1).localeCompare(tokenKey(token2));
+        }
     }
 }
 
-export function simplifyToken(token: Token): Token {
+function tokenKey(token: Token): string {
+    switch (token.type) {
+        case TokenType.LITERAL:
+            return `literal:${token.value.toString()}`;
+        case TokenType.VARIABLE:
+            return `variable:${token.id}`;
+        case TokenType.OPERATOR: {
+            switch (token.operator) {
+                case Operator.ADD:
+                case Operator.MULTIPLY:
+                    return `${token.operator}:[${token.operands.map(tokenKey).sort().join("|")}]`;
+                case Operator.POWER:
+                    return `${token.operator}:${tokenKey(token.base)}:[${token.exponents.map(tokenKey).sort().join("|")}]`;
+                case Operator.SUBTRACT:
+                case Operator.DIVIDE:
+                    return `${token.operator}:${tokenKey(token.left)}:${tokenKey(token.right)}`;
+                case Operator.NEGATE:
+                case Operator.SINE:
+                case Operator.COSINE:
+                case Operator.TANGENT:
+                case Operator.ARCSINE:
+                case Operator.ARCCOSINE:
+                case Operator.ARCTANGENT:
+                    return `${token.operator}:${tokenKey(token.operand)}`;
+            }
+        }
+    }
+}
     if (isLiteral(token) || isVariable(token)) { return token; }
     let t = token;
 
